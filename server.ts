@@ -2,8 +2,8 @@ import {
   fromFileUrl,
   toFileUrl,
   join,
-} from "https://deno.land/std@0.190.0/path/mod.ts";
-import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.7.0/mod.ts";
+} from "https://deno.land/std@0.196.0/path/mod.ts";
+import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
 import * as esbuild from "https://deno.land/x/esbuild@v0.18.16/wasm.js";
 import { IslandDef, getIslands } from "./client.ts";
 import {
@@ -11,10 +11,9 @@ import {
   collectAndCleanScripts,
   getHashSync,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
-import type { RouteConfig } from "https://deno.land/x/fresh@1.1.6/server.ts";
 import { createKv, streamToArrayBuffer, streamToJson } from "./src/utils/kv.ts";
 
-export const config: RouteConfig = {
+export const config = {
   routeOverride: "/islands/:id*",
 };
 
