@@ -4,7 +4,7 @@ import {
   join,
 } from "https://deno.land/std@0.196.0/path/mod.ts";
 import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
-import * as esbuild from "https://deno.land/x/esbuild@v0.18.16/wasm.js";
+import * as esbuild from "https://deno.land/x/esbuild@v0.18.17/wasm.js";
 import { IslandDef, getIslands } from "./client.ts";
 import {
   scripted,
@@ -386,6 +386,14 @@ const transformVirtualNodeToStatic = (params, islands) => {
   return newParams;
 };
 
+const jsonStringifyWithBigIntSupport = (data: unknown) => {
+  if (data !== undefined) {
+    return JSON.stringify(data, (_, v) =>
+      typeof v === "bigint" ? `${v}#bigint` : v
+    ).replace(/"(-?\d+)#bigint"/g, (_, a) => a);
+  }
+};
+
 export const createJsx =
   ({
     jsx,
@@ -413,7 +421,7 @@ export const createJsx =
             "data-islet-type": "island",
             "data-islet-url": `${prefix}/islands/${getHashSync(island.url)}.js`,
             "data-islet-export": island.exportName,
-            "data-islet-props": JSON.stringify({
+            "data-islet-props": jsonStringifyWithBigIntSupport({
               ...transformVirtualNodeToStatic(params, islands),
               children: undefined,
             }),
