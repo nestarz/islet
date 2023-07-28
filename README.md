@@ -17,6 +17,8 @@ Islet is a modern JavaScript library that introduces an architecture for creatin
 import * as Islands from "islet/server";
 import renderToString from "preact-render-to-string";
 import { router } from "rutt";
+import pipe from "pipe";
+
 import ServerComponent from "./components/ServerComponent.tsx";
 
 await Deno.serve(
