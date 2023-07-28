@@ -69,8 +69,13 @@ Passthrough is a simple Island component, the point here being that it is a high
 // ServerComponent.tsx
 import Passthrough from "./IslandComponent.tsx";
 
-const Foo = ({ n }) => {
-  return <h2>This is a Server Component #{n}</h2>;
+const Foo = ({ n, children }) => {
+  return (
+    <div>
+      <h2>This is a Server Component #{n}</h2>
+      <div>{children}</div>
+    </div>
+  );
 };
 
 const ServerComponent = () => {
@@ -120,7 +125,7 @@ To use Islet with custom jsx-runtime in Deno, you need to add specific options i
     "preact": "https://esm.sh/preact@10.16.0?target=es2022",
     "preact/hooks": "https://esm.sh/*preact@10.16.0/hooks?target=es2022",
     "preact/jsx-runtime": "https://esm.sh/*preact@10.16.0/jsx-runtime.js?target=es2022",
-    "preact/jsx-dev-runtime": "https://esm.sh/*preact@10.16.0/jsx-dev-runtime.js?target=es2022",
+    "preact/jsx-dev-runtime": "https://esm.sh/*preact@10.16.0/jsx-dev-runtime.js?target=es2022"
     // ...
   }
 }
