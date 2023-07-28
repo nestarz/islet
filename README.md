@@ -50,11 +50,11 @@ interface PassthroughProps {
 }
 
 const IslandComponent = island(({ children, n }: PassthroughProps) => {
-  const [count, useCount] = useState(0);
+  const [count, setCount] = useState(0);
   return (
     <div>
       <h2>This is an Island Component #{n}</h2>
-      <button onClick={() => set((v) => v + 1)}>update {v}</button>
+      <button onClick={() => setCount((v) => v + 1)}>update {count}</button>
       <div>{children}</div>
     </div>
   );
