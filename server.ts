@@ -10,6 +10,7 @@ import {
   scripted,
   collectAndCleanScripts,
   getHashSync,
+  storeFunctionExecution,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
 import { createKv, streamToArrayBuffer, streamToJson } from "./src/utils/kv.ts";
 
@@ -295,8 +296,9 @@ const hydrate = (
 
   const getType = async (node: Element) =>
     node.dataset?.isletType === "island"
-      ? await import(node.dataset?.isletUrl).then(
-          (module) => module[node.dataset?.export ?? "default"]
+      ? await import(window._ISLET[node.dataset.isletId].url).then(
+          (module) =>
+            module[window._ISLET[node.dataset.isletId].exportName ?? "default"]
         )
       : null;
 
@@ -312,7 +314,7 @@ const hydrate = (
     const type = await getType(node);
     if (!type) return h(tagName, attributes, children);
 
-    const islandProps = JSON.parse(node.dataset.isletProps);
+    const islandProps = JSON.parse(window._ISLET[node.dataset.isletId].props);
     islandProps.children = await toVirtual(
       h,
       node.querySelector("[data-islet-type]")
@@ -348,7 +350,7 @@ const hydrate = (
       h,
       node.querySelector("[data-islet-type]")
     );
-    const props = JSON.parse(node.dataset.isletProps);
+    const props = JSON.parse(window._ISLET[node.dataset.isletId].props);
     props.children = children;
     const resolvedProps = await transformStaticNodeToVirtual(h, props);
     hydrate(h(type, resolvedProps), container);
@@ -411,21 +413,31 @@ export const createJsx =
   ) => {
     const islands = getIslands(islandKey);
     const island = islands.get(type);
+    const isletData = !island
+      ? null
+      : {
+          url: `${prefix}/islands/${getHashSync(island.url)}.js`,
+          exportName: island.exportName,
+          props: jsonStringifyWithBigIntSupport({
+            ...transformVirtualNodeToStatic(params, islands),
+            children: undefined,
+          }),
+        };
+    const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
+    if (island)
+      storeFunctionExecution((isletId: string, isletData: unknown) => {
+        window._ISLET = Object.assign(
+          { [isletId]: isletData },
+          window._ISLET || {}
+        );
+      }, ...[isletId, isletData]);
     const className = island ? createIslandScript(prefix, island) : null;
     const children = h(type, params, key, ...props);
     const result = h(island ? "div" : Fragment, {
       style: { display: "contents" },
       className,
       ...(island
-        ? {
-            "data-islet-type": "island",
-            "data-islet-url": `${prefix}/islands/${getHashSync(island.url)}.js`,
-            "data-islet-export": island.exportName,
-            "data-islet-props": jsonStringifyWithBigIntSupport({
-              ...transformVirtualNodeToStatic(params, islands),
-              children: undefined,
-            }),
-          }
+        ? { "data-islet-type": "island", "data-islet-id": isletId }
         : {}),
       children: !island
         ? children
