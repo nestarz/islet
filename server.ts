@@ -14,12 +14,9 @@ import {
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
 import { createKv, streamToArrayBuffer, streamToJson } from "./src/utils/kv.ts";
 
+const buildId = Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString();
 const createIslandId = (key: string) =>
-  getHashSync(
-    [Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString(), key]
-      .filter((v) => v)
-      .join("_")
-  );
+  getHashSync([buildId, key].filter((v) => v).join("_"));
 
 export const config = {
   routeOverride: "/islands/:id*",
