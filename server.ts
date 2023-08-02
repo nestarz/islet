@@ -1,18 +1,25 @@
 import {
   fromFileUrl,
-  toFileUrl,
   join,
+  toFileUrl,
 } from "https://deno.land/std@0.196.0/path/mod.ts";
 import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
 import * as esbuild from "https://deno.land/x/esbuild@v0.18.17/wasm.js";
-import { IslandDef, getIslands } from "./client.ts";
+import { getIslands, IslandDef } from "./client.ts";
 import {
-  scripted,
   collectAndCleanScripts,
   getHashSync,
+  scripted,
   storeFunctionExecution,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
 import { createKv, streamToArrayBuffer, streamToJson } from "./src/utils/kv.ts";
+
+const createIslandId = (key: string) =>
+  getHashSync(
+    [Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString(), key]
+      .filter((v) => v)
+      .join("_")
+  );
 
 export const config = {
   routeOverride: "/islands/:id*",
@@ -41,7 +48,7 @@ function deepApply<T>(data: T, applyFn): T {
   return Object.fromEntries(clean) as T;
 }
 
-const createCounter = (startAt = 0) => ((i) => () => i++)(startAt) // prettier-ignore
+const createCounter = (startAt = 0) => ((i) => () => i++)(startAt); // prettier-ignore
 
 const kv = await createKv();
 
@@ -208,7 +215,7 @@ const createIslands = async (manifest: Manifest) => {
       ...Array.from(getIslands(manifest.key ?? "default")).map(
         ([, island]) => ({
           in: island.url,
-          out: getHashSync(island.url),
+          out: createIslandId(island.url),
         })
       ),
     ],
@@ -229,7 +236,7 @@ const createIslands = async (manifest: Manifest) => {
   console.time(id);
   const key = getHashSync(JSON.stringify({ buildConfig, id: 3 }));
   const paths = await kv?.getFile(key).then((r) => (r ? streamToJson(r) : r));
-  if (!builds.has(key))
+  if (!builds.has(key)) {
     builds.set(
       key,
       paths
@@ -239,6 +246,7 @@ const createIslands = async (manifest: Manifest) => {
             await esbuildState.init().then(() => esbuild.build(buildConfig))
           )
     );
+  }
   console.timeEnd(id);
   return {
     get: (id: string) =>
@@ -334,9 +342,9 @@ const hydrate = (
             transformStaticNodeToVirtual(h, v.props),
           ]);
           return [k, h(importedV[v.exportName], propsV)];
-        } else if (v?.type)
+        } else if (v?.type) {
           return [k, h(v.type, await transformStaticNodeToVirtual(h, v.props))];
-        else return [k, v];
+        } else return [k, v];
       })
     );
 
@@ -359,7 +367,7 @@ const hydrate = (
 };
 
 const createIslandScript = (prefix: string, { url, exportName }: IslandDef) => {
-  const id = getHashSync(url);
+  const id = createIslandId(url);
   return scripted(hydrate, `${prefix}/islands/${id}.js`, exportName);
 };
 
@@ -374,7 +382,7 @@ const transformVirtualNodeToStatic = (params, islands) => {
           ? islands.get(value?.type ?? value)
           : null;
       if (component) {
-        const id = getHashSync(component.url);
+        const id = createIslandId(component.url);
         return {
           ...obj,
           [key]: value,
@@ -416,7 +424,7 @@ export const createJsx =
     const isletData = !island
       ? null
       : {
-          url: `${prefix}/islands/${getHashSync(island.url)}.js`,
+          url: `${prefix}/islands/${createIslandId(island.url)}.js`,
           exportName: island.exportName,
           props: jsonStringifyWithBigIntSupport({
             ...transformVirtualNodeToStatic(params, islands),
@@ -424,13 +432,14 @@ export const createJsx =
           }),
         };
     const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
-    if (island)
+    if (island) {
       storeFunctionExecution((isletId: string, isletData: unknown) => {
         window._ISLET = Object.assign(
           { [isletId]: isletData },
           window._ISLET || {}
         );
       }, ...[isletId, isletData]);
+    }
     const className = island ? createIslandScript(prefix, island) : null;
     const children = h(type, params, key, ...props);
     const result = h(island ? "div" : Fragment, {
