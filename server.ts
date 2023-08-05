@@ -23,11 +23,12 @@ export const config = {
 };
 
 function deepApply<T>(data: T, applyFn): T {
+  function isObject(object: unknown): object is Record<keyof never, unknown> {
+    return object instanceof Object && object.constructor === Object;
+  }
   if (Array.isArray(data)) {
     return (data as unknown[]).map((value) =>
-      typeof value === "object" && value !== null
-        ? deepApply(value, applyFn)
-        : value
+      isObject(value) ? deepApply(value, applyFn) : value
     ) as unknown as T;
   }
   const entries = Object.entries(data as Record<string, unknown>).reduce(
@@ -38,8 +39,7 @@ function deepApply<T>(data: T, applyFn): T {
     data
   );
   const clean = Object.entries(entries).map(([key, v]) => {
-    const value =
-      typeof v === "object" && v !== null ? deepApply(v, applyFn) : v;
+    const value = isObject(v) ? deepApply(v, applyFn) : v;
     return [key, value];
   });
   return Object.fromEntries(clean) as T;
