@@ -252,12 +252,14 @@ const createIslands = async (manifest: Manifest) => {
 };
 
 export const createHandler = (manifest: Manifest) => {
-  let promise: null | Promise<{
-    get: (id: string) => ArrayBuffer | null | undefined;
-  }> = null;
+  const promiseCache: Map<
+    string,
+    Promise<{ get: (id: string) => ArrayBuffer | null | undefined }>
+  > = new Map();
   return async (_req: Request, _ctx: any, match: Record<string, string>) => {
-    promise ??= createIslands(manifest);
-    const islands = await promise;
+    if (!promiseCache.has(manifest.baseUrl.href))
+      promiseCache.set(manifest.baseUrl.href, createIslands(manifest));
+    const islands = await promiseCache.get(manifest.baseUrl.href)!;
     const contents = islands.get(match.id);
     return new Response(contents, {
       headers: {
