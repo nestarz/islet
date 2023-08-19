@@ -121,7 +121,7 @@ To use Islet with custom jsx-runtime in Deno, you need to add specific options i
     "islet/preact/jsx-runtime": "islet/src/preact/jsx-runtime.ts",
     "islet/react/jsx-runtime": "islet/src/react/jsx-runtime.ts",
     // Preact specific
-    "preact-render-to-string": "https://esm.sh/preact-render-to-string@6.2.0?target=es2022&deps=preact@10.16.0",
+    "preact-render-to-string": "https://esm.sh/preact-render-to-string@6.2.1?target=es2022&deps=preact@10.16.0",
     "preact": "https://esm.sh/preact@10.16.0?target=es2022",
     "preact/hooks": "https://esm.sh/*preact@10.16.0/hooks?target=es2022",
     "preact/jsx-runtime": "https://esm.sh/*preact@10.16.0/jsx-runtime.js?target=es2022",
