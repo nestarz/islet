@@ -314,9 +314,12 @@ const hydrate = (
 
     const tagName = node.tagName?.toLowerCase();
     const attributes = processAttributes(node.attributes ?? {});
-    const children = await Promise.all(
-      [...node.childNodes].map((child) => toVirtual(h, child))
-    );
+    const children =
+      node.childNodes.length > 0
+        ? await Promise.all(
+            [...node.childNodes].map((child) => toVirtual(h, child))
+          )
+        : null;
 
     const type = await getType(node);
     if (!type) return h(tagName, attributes, children);
