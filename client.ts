@@ -9,7 +9,7 @@ export const getIslands = (key: string) => {
   return islands.get(key)!;
 };
 export default function island<T>(
-  fn: ComponentType<{ className: string } & T>,
+  fn: ComponentType<{ className?: string } & T>,
   url: IslandDef["url"],
   exportName: IslandDef["exportName"] = "default",
   key = "default"
