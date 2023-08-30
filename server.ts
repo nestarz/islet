@@ -2,9 +2,9 @@ import {
   fromFileUrl,
   join,
   toFileUrl,
-} from "https://deno.land/std@0.196.0/path/mod.ts";
+} from "https://deno.land/std@0.200.0/path/mod.ts";
 import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
-import * as esbuild from "https://deno.land/x/esbuild@v0.18.17/wasm.js";
+import * as esbuild from "https://deno.land/x/esbuild@v0.19.2/wasm.js";
 import { getIslands, IslandDef } from "./client.ts";
 import {
   collectAndCleanScripts,
