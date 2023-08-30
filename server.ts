@@ -71,6 +71,7 @@ export interface Manifest {
   prefix: string;
   jsxImportSource: string;
   importMapFileName?: string;
+  esbuildOptions?: Partial<Parameters<typeof esbuild.build>[0]>;
 }
 
 const readPlugin = () => ({
@@ -228,6 +229,7 @@ const createIslands = async (manifest: Manifest) => {
     outdir: manifest.prefix,
     sourcemap: "linked",
     minify: true,
+    ...(manifest.esbuildOptions ?? {}),
   };
   const id = `[esbuild-${buildCounter()}] build`;
   console.time(id);
