@@ -2,7 +2,7 @@ import {
   fromFileUrl,
   join,
   toFileUrl,
-} from "https://deno.land/std@0.200.0/path/mod.ts";
+} from "https://deno.land/std@0.201.0/path/mod.ts";
 import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
 import * as esbuild from "https://deno.land/x/esbuild@v0.19.2/wasm.js";
 import { getIslands, IslandDef } from "./client.ts";
@@ -206,7 +206,7 @@ const createIslands = async (manifest: Manifest) => {
           manifest.importMapFileName ?? "import_map.json",
           manifest.baseUrl
         ).href,
-        loader: "portable",
+        loader: isDenoDeploy ? "portable" : "native",
       }),
     ],
     entryPoints: [
@@ -263,12 +263,14 @@ export const createHandler = (manifest: Manifest) => {
       promiseCache.set(manifest.baseUrl.href, createIslands(manifest));
     const islands = await promiseCache.get(manifest.baseUrl.href)!;
     const contents = islands.get(match.id);
-    return new Response(contents, {
-      headers: {
-        "content-type": "text/javascript",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
+    return contents
+      ? new Response(contents, {
+          headers: {
+            "content-type": "text/javascript",
+            "Cache-Control": "public, max-age=31536000, immutable",
+          },
+        })
+      : new Response(null, { status: 404 });
   };
 };
 
