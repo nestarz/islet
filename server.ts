@@ -113,7 +113,9 @@ const esbuildState = ((
     console.time(`[init-${id}] ${esbuild.version}`);
     const wasmURL = `https://raw.githubusercontent.com/esbuild/deno-esbuild/v${esbuild.version}/esbuild.wasm`;
     ongoingPromise = esbuild
-      .initialize(isDenoDeploy ? { wasmURL, worker: false } : {})
+      .initialize(
+        isDenoDeploy || !globalThis.Worker ? { wasmURL, worker: false } : {}
+      )
       .then(() => {
         done = true;
         console.timeEnd(`[init-${id}] ${esbuild.version}`);
@@ -448,7 +450,7 @@ export const createJsx =
     }
     const className = island ? createIslandScript(prefix, island) : null;
     const children = h(type, params, key, ...props);
-    const result = h(island ? "div" : Fragment, {
+    const result = h(island ? "fragment" : Fragment, {
       style: { display: "contents" },
       className,
       ...(island
@@ -459,7 +461,7 @@ export const createJsx =
         : cloneElement(children, {
             children: children.props.children
               ? [
-                  h("div", {
+                  h("fragment", {
                     style: { display: "contents" },
                     "data-islet-type": "slot",
                     children: children.props.children,
