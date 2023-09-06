@@ -12,7 +12,7 @@ import {
   scripted,
   storeFunctionExecution,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
-import { createKv, streamToArrayBuffer, streamToJson } from "./src/utils/kv.ts";
+import * as kvUtils from "https://deno.land/x/kv_toolbox@0.0.3/blob.ts";
 
 const buildId = Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString();
 const createIslandId = (key: string) =>
@@ -47,7 +47,7 @@ function deepApply<T>(data: T, applyFn): T {
 
 const createCounter = (startAt = 0) => ((i) => () => i++)(startAt); // prettier-ignore
 
-const kv = await createKv();
+const kv = await Deno.openKv();
 
 const initCounter = createCounter(0);
 const buildCounter = createCounter(0);
@@ -143,12 +143,9 @@ const debuild = async (paths: string[]) => {
   await Promise.all(
     paths.map(
       async (path) =>
-        await kv?.getFile(path).then(async (stream) =>
-          output.outputFiles?.push({
-            path,
-            contents: stream ? await streamToArrayBuffer(stream) : null,
-          })
-        )
+        await kvUtils
+          ?.get(kv, [path])
+          .then((contents) => output.outputFiles?.push({ path, contents }))
     )
   );
   return output;
@@ -158,16 +155,16 @@ const savebuild = async (key: string, build: EsBuild) => {
   await Promise.all(
     (build.outputFiles ?? []).map(
       async ({ path, contents }) =>
-        await kv
-          ?.saveFile(path, contents)
+        await kvUtils
+          ?.set(kv, [path], contents)
           .catch((e) =>
             console.error(`Error: Saving file to KV failed ${path}\n`, e)
           )
     )
   );
   await Promise.all([
-    kv?.saveFile(key, new TextEncoder().encode(JSON.stringify(paths))),
-    kv?.housekeep(),
+    kvUtils.set(kv, [key], new TextEncoder().encode(JSON.stringify(paths))),
+    //  kv.housekeep(),
   ]);
   return await debuild(paths!);
 };
@@ -235,8 +232,12 @@ const createIslands = async (manifest: Manifest) => {
   };
   const id = `[esbuild-${buildCounter()}] build`;
   console.time(id);
-  const key = getHashSync(JSON.stringify({ buildConfig, id: 3 }));
-  const paths = await kv?.getFile(key).then((r) => (r ? streamToJson(r) : r));
+  const key = getHashSync(JSON.stringify({ buildConfig }));
+  console.log(JSON.stringify({ buildConfig }));
+  const pathsBin = await kvUtils.get(kv, [key]);
+  const paths = pathsBin
+    ? JSON.parse(new TextDecoder().decode(pathsBin))
+    : pathsBin;
   if (!builds.has(key)) {
     builds.set(
       key,
