@@ -1,3 +1,5 @@
+/// <reference lib="deno.unstable" />
+
 import {
   fromFileUrl,
   join,
@@ -14,6 +16,7 @@ import {
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
 import * as kvUtils from "https://deno.land/x/kv_toolbox@0.0.3/blob.ts";
 
+const kv = await Deno.openKv();
 const buildId = Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString();
 const createIslandId = (key: string) =>
   getHashSync([buildId, key].filter((v) => v).join("_"));
@@ -47,8 +50,6 @@ function deepApply<T>(data: T, applyFn): T {
 
 const createCounter = (startAt = 0) => ((i) => () => i++)(startAt); // prettier-ignore
 
-const kv = await Deno.openKv();
-
 const initCounter = createCounter(0);
 const buildCounter = createCounter(0);
 const transformCounter = createCounter(0);
@@ -74,37 +75,11 @@ export interface Manifest {
   esbuildOptions?: Partial<Parameters<typeof esbuild.build>[0]>;
 }
 
-const readPlugin = () => ({
-  name: "deno_read",
-  setup(build) {
-    build.onResolve(
-      { filter: /^\.(.*)\.(t|j)s(x|)/, namespace: "file" },
-      async (args) => {
-        const path = await Deno.realPath(
-          args.path.startsWith("file")
-            ? fromFileUrl(args.path)
-            : args.path.startsWith(".")
-            ? join(args.resolveDir, args.path)
-            : args.path
-        );
-        return { path, namespace: "file" };
-      }
-    );
-    build.onLoad(
-      { filter: /.*\.(t|j)s(x|)/, namespace: "file" },
-      async (args) => ({
-        contents: await fetch(toFileUrl(args.path)).then((r) => r.text()),
-        loader: "tsx",
-      })
-    );
-  },
-});
-
 const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
 
 const esbuildState = ((
   done = false,
-  ongoingPromise: null | Promise<null> = null
+  ongoingPromise: null | Promise<null | void> = null
 ) => ({
   isInitialized: () => done,
   init: () => {
@@ -199,7 +174,6 @@ const builds: Map<string, Build> = new Map();
 const createIslands = async (manifest: Manifest) => {
   const buildConfig: Parameters<typeof esbuild.build>[0] = {
     plugins: [
-      readPlugin(),
       ...denoPlugins({
         importMapURL: new URL(
           manifest.importMapFileName ?? "import_map.json",
@@ -283,11 +257,11 @@ type HydrateFn = (
 ) => Root;
 
 const hydrate = (
-  node: Element,
+  node: HTMLElement,
   specifier: string,
   exportName: string
 ): void => {
-  const closest = node.parentElement.closest("[data-islet-type=island]");
+  const closest = node.parentElement?.closest("[data-islet-type=island]");
   if (closest) return;
 
   const parseStyleStr = (styleStr: string): { [key: string]: string } =>
@@ -308,7 +282,7 @@ const hydrate = (
       { key: Math.random() }
     );
 
-  const getType = async (node: Element) =>
+  const getType = async (node: HTMLElement) =>
     node.dataset?.isletType === "island"
       ? await import(window._ISLET[node.dataset.isletId].url).then(
           (module) =>
