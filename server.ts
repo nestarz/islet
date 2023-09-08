@@ -11,10 +11,24 @@ import {
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
 import * as kvUtils from "https://deno.land/x/kv_toolbox@0.0.3/blob.ts";
 
+const cache = (() => {
+  const cache = new Map();
+  const toStr = JSON.stringify;
+  return {
+    get: async <T, U>(key: T, fn: (key: T) => U | Promise<U>): Promise<U> =>
+      cache.has(toStr(key)) ? (cache.get(toStr(key)) as U) : await fn(key),
+    save: <T, U>(key: T, getFn: (key: T) => U) =>
+      Promise.resolve(getFn(key)).then((value) =>
+        cache.set(toStr(key), value).get(toStr(key))
+      ),
+  };
+})();
+
 const kv = await Deno.openKv();
 const buildId = Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString();
 const createIslandId = (key: string) =>
   getHashSync([buildId, key].filter((v) => v).join("_"));
+const calcKvKey = (key: string) => ["_islet", buildId, key];
 
 export const config = {
   routeOverride: "/islands/:id*",
@@ -112,8 +126,8 @@ const debuild = async (paths: string[]) => {
   };
   await Promise.all(
     paths.map((path) =>
-      kvUtils
-        .get(kv, ["_islet", buildId, path])
+      cache
+        .get(calcKvKey(path), () => kvUtils.get(kv, calcKvKey(path)))
         .then((contents) => output.outputFiles?.push({ path, contents }))
     )
   );
@@ -124,8 +138,11 @@ const savebuild = async (key: string, build: EsBuild) => {
   const paths = build.outputFiles?.map((d) => d.path);
   Promise.all(
     (build.outputFiles ?? []).map(({ path, contents }) =>
-      kvUtils
-        .set(kv, ["_islet", buildId, path], contents)
+      cache
+        .save(calcKvKey(key), async () => {
+          await kvUtils.set(kv, calcKvKey(path), contents);
+          return contents;
+        })
         .catch((e) =>
           console.error(`Error: Saving file to KV failed ${path}\n`, e)
         )
@@ -133,12 +150,12 @@ const savebuild = async (key: string, build: EsBuild) => {
   );
 
   console.time("[island] saving");
-  await kvUtils
-    .set(
-      kv,
-      ["_islet", buildId, key],
-      new TextEncoder().encode(JSON.stringify(paths))
-    )
+  await cache
+    .save(calcKvKey(key), async () => {
+      const value = new TextEncoder().encode(JSON.stringify(paths));
+      await kvUtils.set(kv, calcKvKey(key), value);
+      return value;
+    })
     .catch(console.error)
     .then(async () => {
       for await (const iterator of kv.list({ prefix: ["_islet"] }))
@@ -213,7 +230,9 @@ const createIslands = async (manifest: Manifest) => {
   const id = `[esbuild-${buildCounter()}] build`;
   console.time(id);
   const key = getHashSync(JSON.stringify({ buildConfig }));
-  const pathsBin = await kvUtils.get(kv, ["_islet", buildId, key]);
+  const pathsBin = await cache.get(calcKvKey(key), () =>
+    kvUtils.get(kv, calcKvKey(key))
+  );
   const paths = pathsBin
     ? JSON.parse(new TextDecoder().decode(pathsBin))
     : pathsBin;
