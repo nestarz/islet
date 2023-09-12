@@ -333,22 +333,26 @@ const hydrate = (
       })
     );
 
-  import(specifier).then(async (o: { h: typeof h; hydrate: HydrateFn }) => {
-    const { h, hydrate: rawHydrate, withFragment } = o;
-    const type = o[exportName];
-    const hydrate = (a: unknown, b: unknown) =>
-      rawHydrate.length === 2 ? rawHydrate(a, b) : rawHydrate(b, a);
-    const container = withFragment ? document.createDocumentFragment() : node;
-    const children = await toVirtual(
-      h,
-      node.querySelector("[data-islet-type]")
-    );
-    const props = JSON.parse(window._ISLET[node.dataset.isletId].props);
-    props.children = children;
-    const resolvedProps = await transformStaticNodeToVirtual(h, props);
-    hydrate(h(type, resolvedProps), container);
-    // if (withFragment) node.replaceWith(container);
-  });
+  const renderTask = () =>
+    import(specifier).then(async (o: { h: typeof h; hydrate: HydrateFn }) => {
+      const { h, hydrate: rawHydrate, withFragment } = o;
+      const type = o[exportName];
+      const hydrate = (a: unknown, b: unknown) =>
+        rawHydrate.length === 2 ? rawHydrate(a, b) : rawHydrate(b, a);
+      const container = withFragment ? document.createDocumentFragment() : node;
+      const children = await toVirtual(
+        h,
+        node.querySelector("[data-islet-type]")
+      );
+      const props = JSON.parse(window._ISLET[node.dataset.isletId].props);
+      props.children = children;
+      const resolvedProps = await transformStaticNodeToVirtual(h, props);
+      hydrate(h(type, resolvedProps), container);
+    });
+
+  "scheduler" in globalThis
+    ? globalThis.scheduler!.postTask(renderTask)
+    : setTimeout(renderTask, 0);
 };
 
 const createIslandScript = (prefix: string, { url, exportName }: IslandDef) => {
