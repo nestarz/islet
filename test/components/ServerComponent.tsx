@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "react";
-import Passthrough from "./IslandComponent.tsx";
+import Passthrough, { Foo2 } from "./IslandComponent.tsx";
 import { ModalButton } from "./IslandComponent.tsx";
+import { cloneElement } from "preact";
 
 export interface FooProps {
   children?: ComponentChildren;
@@ -20,7 +21,9 @@ function Foo(props: FooProps) {
     >
       <h2 className="foobar">This is server component {props.n}</h2>
       <h3 className="foobar">This is server component {props.n}</h3>
-      {props.children}
+      {(Array.isArray(props.children) ? props.children : [props.children])
+        .filter((v) => v)
+        .map((d) => cloneElement(d))}
     </div>
   );
 }
@@ -28,15 +31,10 @@ function Foo(props: FooProps) {
 export default function PassthroughPage() {
   return (
     <div style={{ padding: "2rem" }}>
-      <h2>Modal</h2>
-      <ModalButton content={<div>MDR</div>}>
-        <button>TEST</button>
-      </ModalButton>
       <h2>Single</h2>
       <Passthrough n={1} depth={0}>
         <Foo n={1} />
       </Passthrough>
-
       <h2>Nested</h2>
       <Passthrough n={2} depth={0}>
         <Foo n={2}>
@@ -57,12 +55,22 @@ export default function PassthroughPage() {
         </Foo>
       </Passthrough>
 
-      <h2>Island in Island</h2>
-      <Passthrough n={4} depth={0}>
-        <Passthrough n={5}>
-          <Foo n={4} />
-        </Passthrough>
-      </Passthrough>
+      <h2>Modal</h2>
+      <ModalButton
+        content={
+          <div>
+            MDR<span>OK LOL</span>
+            <Foo2 n={1} depth={0}>
+              OK
+            </Foo2>
+            <Passthrough n={6}>
+              <Foo n={6} />
+            </Passthrough>
+          </div>
+        }
+      >
+        <button>open</button>
+      </ModalButton>
     </div>
   );
 }

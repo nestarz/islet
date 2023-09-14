@@ -23,6 +23,17 @@ interface PassthroughProps {
   n: number;
 }
 
+export const Foo2 = island(
+  () => {
+    const [v, set] = useState(0);
+    return (
+      <button onClick={() => set((v2) => (v2 + 1) % 4)}>FOO2 update {v}</button>
+    );
+  },
+  import.meta.url,
+  "Foo2"
+);
+
 export default island(function Passthrough({
   depth,
   children,
@@ -87,6 +98,7 @@ export const ModalButton = island(
             },
           })
         )}
+        {content}
         <Modal open={typeof index === "number"} onClose={() => setIndex(null)}>
           {content}
         </Modal>
