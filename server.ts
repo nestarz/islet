@@ -178,7 +178,9 @@ export const addScripts = async (
   const response = new HTMLRewriter()
     .on("islet", {
       element: (elt) =>
-        elt.replace(`<!--${elt.getAttribute("data-islet")}-->`, { html: true }),
+        elt.replace(`<!--islet:${elt.getAttribute("data-islet")}-->`, {
+          html: true,
+        }),
     })
     .on("body", { element: (elt) => elt.append(script, { html: true }) })
     .transform(new Response(html));
@@ -362,9 +364,13 @@ const hydrate = (
       hydrate(h(type, resolvedProps), container);
     });
 
-  "scheduler" in globalThis
-    ? globalThis.scheduler!.postTask(renderTask)
-    : setTimeout(renderTask, 0);
+  setTimeout(
+    () =>
+      "scheduler" in globalThis
+        ? globalThis.scheduler!.postTask(renderTask)
+        : setTimeout(renderTask, 0),
+    1000
+  );
 };
 
 type Slot = { begin: Comment; end: Comment; id: string; slotId: string };
@@ -406,11 +412,7 @@ const hydrateComment = (specifier: string, id: string): void => {
     type: "slot" | "island";
     slotId: string;
     dataId: string;
-  } =>
-    JSON.parse(
-      new DOMParser().parseFromString(node.nodeValue!, "text/html")
-        .documentElement?.textContent!
-    );
+  } => window._ISLET[node.nodeValue?.split("islet:").pop()?.split(":").pop()];
 
   const getIslets = (root: HTMLElement): Islet[] => {
     const array: Islet[] = [];
@@ -592,6 +594,8 @@ const jsonStringifyWithBigIntSupport = (data: unknown) => {
   }
 };
 
+const isletCounter = createCounter(0);
+const commentCounter = createCounter(0);
 export const createJsx =
   ({
     jsx,
@@ -639,8 +643,20 @@ export const createJsx =
         window._ISLET || {}
       );
     }, ...[isletDataId, isletData]);
-    const isletId = getHashSync(Math.random().toString());
-    createIslandScriptComment(prefix, island, isletId);
+    const isletId = isletCounter();
+
+    const createIslet = (data) => (end) => {
+      const commentId = commentCounter();
+      const payload = {
+        ...data,
+        commentId,
+        ...(end ? { end } : { begin: true }),
+      };
+      storeFunctionExecution((id: string, data: unknown) => {
+        window._ISLET = Object.assign({ [id]: data }, window._ISLET || {});
+      }, ...[commentId, payload]);
+      return h("islet", { "data-islet": `${data.type}:${commentId}` });
+    };
 
     const newProps = {};
     for (const [key, value] of Object.entries(children.props)) {
@@ -649,48 +665,40 @@ export const createJsx =
           !isValidElement(value)
             ? value
             : [
-                h("islet", {
-                  "data-islet": JSON.stringify({
-                    id: isletId,
-                    dataId: isletDataId,
-                    type: "slot",
-                    slotId: key,
-                    begin: true,
-                  }),
-                }),
+                createIslet({
+                  id: isletId,
+                  dataId: isletDataId,
+                  type: "slot",
+                  slotId: key,
+                })(false),
                 value,
-                h("islet", {
-                  "data-islet": JSON.stringify({
-                    id: isletId,
-                    dataId: isletDataId,
-                    type: "slot",
-                    slotId: key,
-                    end: true,
-                  }),
-                }),
+                createIslet({
+                  id: isletId,
+                  dataId: isletDataId,
+                  type: "slot",
+                  slotId: key,
+                })(true),
               ]
         );
     }
 
-    return h(Fragment, {
+    const result = h(Fragment, {
       children: [
-        h("islet", {
-          "data-islet": JSON.stringify({
-            id: isletId,
-            dataId: isletDataId,
-            begin: true,
-            type: "island",
-          }),
-        }),
+        createIslet({
+          id: isletId,
+          dataId: isletDataId,
+          type: "island",
+        })(false),
         cloneElement(children, newProps),
-        h("islet", {
-          "data-islet": JSON.stringify({
-            id: isletId,
-            dataId: isletDataId,
-            end: true,
-            type: "island",
-          }),
-        }),
+        createIslet({
+          id: isletId,
+          dataId: isletDataId,
+          type: "island",
+        })(true),
       ],
     });
+
+    createIslandScriptComment(prefix, island, isletId);
+
+    return result;
   };
