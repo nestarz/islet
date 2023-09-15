@@ -407,12 +407,15 @@ const hydrateComment = (specifier: string, id: string): void => {
     node: Comment
   ): {
     id: string;
-    begin: boolean;
-    end: boolean;
     type: "slot" | "island";
     slotId: string;
     dataId: string;
-  } => window._ISLET[node.nodeValue?.split("islet:").pop()?.split(":").pop()];
+  } => {
+    const [isletId, type, slotId, dataId] =
+      node.nodeValue?.split("islet:").pop()?.split(":") ?? [];
+    const res = { id: isletId, type, slotId, dataId };
+    return res;
+  };
 
   const getIslets = (root: HTMLElement): Islet[] => {
     const array: Islet[] = [];
@@ -420,8 +423,12 @@ const hydrateComment = (specifier: string, id: string): void => {
     let node: Comment | null;
     const filter = NodeFilter.SHOW_COMMENT;
     const iterator = document.createNodeIterator(root, filter, null);
+    const seen = new Set();
     while ((node = iterator.nextNode() as Comment)) {
-      const { begin, end, dataId, id, type, slotId } = parseComment(node);
+      const { dataId, id, type, slotId } = parseComment(node);
+      const begin = !seen.has(type + slotId + id);
+      const end = seen.has(type + slotId + id);
+      seen.add(type + slotId + id);
       if (begin && type === "island") {
         array.push({ id, dataId, begin: node, end: node, parent, slots: {} });
         parent = id;
@@ -446,25 +453,6 @@ const hydrateComment = (specifier: string, id: string): void => {
       next = next.nextSibling
     )
       yield next;
-  }
-
-  function duplicate(startNode: Node, endNode: Node) {
-    const fragment = document.createDocumentFragment();
-    fragment.append(
-      ...Array.from(nodesBetween(startNode, endNode)).map((d) =>
-        d.cloneNode(true)
-      )
-    );
-    return fragment;
-  }
-
-  function replaceNodes(startNode: Node, endNode: Node, ...newNodes: Node[]) {
-    const parent = startNode.parentNode;
-    while (startNode.nextSibling && startNode.nextSibling !== endNode)
-      parent?.removeChild(startNode.nextSibling);
-    const fragment = document.createDocumentFragment();
-    newNodes.forEach((node) => fragment.appendChild(node));
-    parent?.insertBefore(fragment, endNode);
   }
 
   const getType = async (islet: Islet) =>
@@ -536,10 +524,8 @@ const hydrateComment = (specifier: string, id: string): void => {
       const { h, hydrate: rawHydrate } = o;
       const hydrate = (a: unknown, b: unknown) =>
         rawHydrate.length === 2 ? rawHydrate(a, b) : rawHydrate(b, a);
-      const container = duplicate(islet.begin, islet.end);
-      const staticVNode = await toVirtual(h, islet.begin, islets);
-      hydrate(staticVNode, container);
-      replaceNodes(islet.begin, islet.end, container);
+      const vnode = await toVirtual(h, islet.begin, islets);
+      hydrate(vnode, islet.begin.parentNode);
     });
   };
 
@@ -595,7 +581,6 @@ const jsonStringifyWithBigIntSupport = (data: unknown) => {
 };
 
 const isletCounter = createCounter(0);
-const commentCounter = createCounter(0);
 export const createJsx =
   ({
     jsx,
@@ -643,19 +628,13 @@ export const createJsx =
         window._ISLET || {}
       );
     }, ...[isletDataId, isletData]);
-    const isletId = isletCounter();
+    const isletId = isletCounter().toString();
 
-    const createIslet = (data) => (end) => {
-      const commentId = commentCounter();
-      const payload = {
-        ...data,
-        commentId,
-        ...(end ? { end } : { begin: true }),
-      };
-      storeFunctionExecution((id: string, data: unknown) => {
-        window._ISLET = Object.assign({ [id]: data }, window._ISLET || {});
-      }, ...[commentId, payload]);
-      return h("islet", { "data-islet": `${data.type}:${commentId}` });
+    const createIslet = (data) => {
+      const id = `${data.isletId}:${data.type}:${data.slotId ?? ""}:${
+        data.dataId
+      }`;
+      return h("islet", { "data-islet": id });
     };
 
     const newProps = {};
@@ -666,35 +645,27 @@ export const createJsx =
             ? value
             : [
                 createIslet({
-                  id: isletId,
+                  isletId,
                   dataId: isletDataId,
                   type: "slot",
                   slotId: key,
-                })(false),
+                }),
                 value,
                 createIslet({
-                  id: isletId,
+                  isletId,
                   dataId: isletDataId,
                   type: "slot",
                   slotId: key,
-                })(true),
+                }),
               ]
         );
     }
 
     const result = h(Fragment, {
       children: [
-        createIslet({
-          id: isletId,
-          dataId: isletDataId,
-          type: "island",
-        })(false),
+        createIslet({ isletId, dataId: isletDataId, type: "island" }),
         cloneElement(children, newProps),
-        createIslet({
-          id: isletId,
-          dataId: isletDataId,
-          type: "island",
-        })(true),
+        createIslet({ isletId, dataId: isletDataId, type: "island" }),
       ],
     });
 
