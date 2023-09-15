@@ -182,7 +182,7 @@ export const addScripts = async (
     })
     .on("body", { element: (elt) => elt.append(script, { html: true }) })
     .transform(new Response(html));
-  return isReadable ? response.body! : await response.text();
+  return isReadable ? response.body : await response.text();
 };
 
 const builds: Map<string, Build> = new Map();
@@ -367,6 +367,11 @@ const hydrate = (
     : setTimeout(renderTask, 0);
 };
 
+interface HierarchyItem<T> {
+  id: string;
+  parent?: string | null;
+  children?: (T & HierarchyItem<T>)[];
+}
 type Slot = { begin: Comment; end: Comment; id: string; slotId: string };
 type Islet = {
   id: string;
@@ -397,19 +402,26 @@ const hydrateComment = (specifier: string, id: string): void => {
       { key: Math.random() }
     );
 
+  function formHierarchy<T extends HierarchyItem<T>>(
+    data: T[]
+  ): (T & HierarchyItem<T>)[] {
+    const map = new Map(data.map((item: T) => [item.id, { ...item }]));
+    data.forEach((item: T) => {
+      const parent = map.get(item.parent!);
+      if (parent) {
+        parent.children = parent.children ?? [];
+        parent.children.push(item);
+      }
+    });
+    return Array.from(map.values()).filter((item: T) => item.parent === null);
+  }
+
   const parseComment = (
-    node: Comment
-  ): {
-    id: string;
-    begin: boolean;
-    end: boolean;
-    type: "slot" | "island";
-    slotId: string;
-    dataId: string;
-  } =>
+    node
+  ): { id: string; begin: boolean; end: boolean; type: "slot" | "island" } =>
     JSON.parse(
-      new DOMParser().parseFromString(node.nodeValue!, "text/html")
-        .documentElement?.textContent!
+      new DOMParser().parseFromString(node.nodeValue, "text/html")
+        .documentElement?.textContent
     );
 
   const getIslets = (root: HTMLElement): Islet[] => {
@@ -524,8 +536,8 @@ const hydrateComment = (specifier: string, id: string): void => {
     return h(tagName, attributes, children);
   };
 
+  window._ISLETS = window._ISLETS ?? getIslets(document.documentElement);
   const renderTask = () => {
-    window._ISLETS = window._ISLETS ?? getIslets(document.documentElement);
     const islets: ReturnType<typeof getIslets> = window._ISLETS;
     const islet = islets.find((v) => v.id === id);
     if (!islet || islet?.parent) return;
@@ -541,9 +553,13 @@ const hydrateComment = (specifier: string, id: string): void => {
     });
   };
 
-  "scheduler" in globalThis
-    ? globalThis.scheduler!.postTask(renderTask)
-    : setTimeout(renderTask, 0);
+  setTimeout(
+    () =>
+      "scheduler" in globalThis
+        ? globalThis.scheduler!.postTask(renderTask)
+        : setTimeout(renderTask, 0),
+    1000
+  );
 };
 
 const createIslandScriptComment = (
