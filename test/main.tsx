@@ -21,11 +21,7 @@ await Deno.serve(
   { port: 8002 },
   router({
     "/": pipe(
-      () => (
-        <body>
-          <ServerComponent />
-        </body>
-      ),
+      () => <ServerComponent />,
       render,
       Islands.addScripts,
       (body: ReadableStream) =>

@@ -1,25 +1,15 @@
 /// <reference lib="deno.unstable" />
-import { HTMLRewriter } from "https://raw.githubusercontent.com/worker-tools/html-rewriter/db2bd9803f/index.ts";
+
 import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
 import * as esbuild from "https://deno.land/x/esbuild@v0.19.2/wasm.js";
 import { getIslands, IslandDef } from "./client.ts";
 import {
   collectAndCleanScripts,
   getHashSync,
+  scripted,
   storeFunctionExecution,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
 import * as kvUtils from "https://deno.land/x/kv_toolbox@0.0.3/blob.ts";
-import { Element } from "https://deno.land/x/lol_html@0.0.6/lol_html.js";
-import {
-  type VNode,
-  type ComponentChildren,
-} from "https://esm.sh/preact@10.17.1";
-
-type H = (
-  type: string | ((args: any) => VNode),
-  props: unknown,
-  ...children: ComponentChildren[]
-) => VNode;
 
 const kv = await Deno.openKv();
 const buildId = Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString();
@@ -174,15 +164,13 @@ export const addScripts = async (
   const scripts = collectAndCleanScripts();
   const code = minify ? await transformScript(scripts) : scripts;
   const script = `<script type="module" defer>${code}</script>`;
-  const isReadable = html instanceof ReadableStream;
-  const response = new HTMLRewriter()
-    .on("islet", {
-      element: (elt) =>
-        elt.replace(`<!--${elt.getAttribute("data-islet")}-->`, { html: true }),
-    })
-    .on("body", { element: (elt) => elt.append(script, { html: true }) })
-    .transform(new Response(html));
-  return isReadable ? response.body : await response.text();
+  if (html instanceof ReadableStream) {
+    return html.pipeThrough(new SuffixTransformStream(script));
+  }
+  return `${html.replace(
+    html.includes("</body>") ? /(<\/body>)/ : /(.*)/,
+    (_, $1) => `${script}${$1}`
+  )}`;
 };
 
 const builds: Map<string, Build> = new Map();
@@ -367,212 +355,9 @@ const hydrate = (
     : setTimeout(renderTask, 0);
 };
 
-interface HierarchyItem<T> {
-  id: string;
-  parent?: string | null;
-  children?: (T & HierarchyItem<T>)[];
-}
-type Slot = { begin: Comment; end: Comment; id: string; slotId: string };
-type Islet = {
-  id: string;
-  dataId: string;
-  parent: string | null;
-  begin: Comment; // from the DOM
-  end: Comment; // from the DOM
-  children?: Islet[];
-  slots: Record<string, Slot>;
-};
-
-const hydrateComment = (specifier: string, id: string): void => {
-  const parseStyleStr = (styleStr: string): { [key: string]: string } =>
-    styleStr
-      .split(";")
-      .map((style) => style.split(":").map((d) => d.trim()))
-      .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
-
-  const processAttributes = (
-    attributes: NamedNodeMap
-  ): Record<string, unknown> =>
-    Array.from(attributes).reduce(
-      (acc, { name, value }) => {
-        acc[name === "class" ? "className" : name] =
-          name === "style" ? parseStyleStr(value) : value;
-        return acc;
-      },
-      { key: Math.random() }
-    );
-
-  function formHierarchy<T extends HierarchyItem<T>>(
-    data: T[]
-  ): (T & HierarchyItem<T>)[] {
-    const map = new Map(data.map((item: T) => [item.id, { ...item }]));
-    data.forEach((item: T) => {
-      const parent = map.get(item.parent!);
-      if (parent) {
-        parent.children = parent.children ?? [];
-        parent.children.push(item);
-      }
-    });
-    return Array.from(map.values()).filter((item: T) => item.parent === null);
-  }
-
-  const parseComment = (
-    node
-  ): { id: string; begin: boolean; end: boolean; type: "slot" | "island" } =>
-    JSON.parse(
-      new DOMParser().parseFromString(node.nodeValue, "text/html")
-        .documentElement?.textContent
-    );
-
-  const getIslets = (root: HTMLElement): Islet[] => {
-    const array: Islet[] = [];
-    let parent: string | null = null;
-    let node: Comment | null;
-    const filter = NodeFilter.SHOW_COMMENT;
-    const iterator = document.createNodeIterator(root, filter, null);
-    while ((node = iterator.nextNode() as Comment)) {
-      const { begin, end, dataId, id, type, slotId } = parseComment(node);
-      if (begin && type === "island") {
-        array.push({ id, dataId, begin: node, end: node, parent, slots: {} });
-        parent = id;
-      }
-      const islet = array
-        .slice()
-        .reverse()
-        .find((v) => v.id === id);
-      if (islet && end && type === "island")
-        (islet.end = node), (parent = islet.parent || null);
-      if (begin && type === "slot" && islet)
-        islet.slots[slotId] = { id, begin: node, end: node, slotId };
-      if (end && type === "slot" && islet) islet.slots[slotId].end = node;
-    }
-    return array;
-  };
-
-  function* nodesBetween(startNode: Node, endNode: Node) {
-    for (
-      let next = startNode.nextSibling;
-      next && next !== endNode;
-      next = next.nextSibling
-    )
-      yield next;
-  }
-
-  function duplicate(startNode: Node, endNode: Node) {
-    const fragment = document.createDocumentFragment();
-    fragment.append(
-      ...Array.from(nodesBetween(startNode, endNode)).map((d) =>
-        d.cloneNode(true)
-      )
-    );
-    return fragment;
-  }
-
-  function replaceNodes(startNode: Node, endNode: Node, ...newNodes: Node[]) {
-    const parent = startNode.parentNode;
-    while (startNode.nextSibling && startNode.nextSibling !== endNode)
-      parent?.removeChild(startNode.nextSibling);
-    const fragment = document.createDocumentFragment();
-    newNodes.forEach((node) => fragment.appendChild(node));
-    parent?.insertBefore(fragment, endNode);
-  }
-
-  const getType = async (islet: Islet) =>
-    await import(window._ISLET[islet.dataId].url).then(
-      (module) => module[window._ISLET[islet.dataId].exportName ?? "default"]
-    );
-
-  const getAll = (nodes, islets) => {
-    let result = [];
-    let lastId = undefined;
-    for (let x of nodes) {
-      const isletStart = islets.find((islet) => islet.begin === x);
-      const isletEnd = islets.find(
-        (islet) => islet.end === x && islet.id === lastId
-      );
-      if (isletStart || !lastId) result.push(x);
-      if (isletStart) lastId = isletStart.id;
-      if (isletEnd) lastId = null;
-    }
-    return result;
-  };
-
-  const toVirtual = async (
-    h: H,
-    node: Node,
-    islets: Islet[]
-  ): Promise<VNode | string | null> => {
-    const islet = islets.find(({ begin }) => begin === node);
-    if (islet) {
-      const type = await getType(islet);
-      const isletData = window._ISLET[islet.dataId];
-      const islandProps = {
-        ...JSON.parse(isletData.props),
-        ...Object.fromEntries(
-          await Promise.all(
-            isletData.slots.map(async (key) => [
-              key,
-              await Promise.all(
-                getAll(
-                  nodesBetween(islet.slots[key].begin, islet.slots[key].end),
-                  islets
-                ).map((node) => toVirtual(h, node, islets))
-              ),
-            ])
-          )
-        ),
-      };
-      return h(type, islandProps);
-    }
-    if (node?.nodeType === 8) return null;
-    if (node?.nodeType !== 1) return node?.textContent;
-    const childNodes = getAll(Array.from(node.childNodes), islets);
-    const children = await Promise.all(
-      childNodes.map((node) => toVirtual(h, node, islets))
-    );
-    const elt = node as unknown as Element;
-    const tagName = elt.tagName?.toLowerCase();
-    const attributes = processAttributes(elt.attributes ?? {});
-    return h(tagName, attributes, children);
-  };
-
-  window._ISLETS = window._ISLETS ?? getIslets(document.documentElement);
-  const renderTask = () => {
-    const islets: ReturnType<typeof getIslets> = window._ISLETS;
-    const islet = islets.find((v) => v.id === id);
-    if (!islet || islet?.parent) return;
-
-    import(specifier).then(async (o: { h: typeof h; hydrate: HydrateFn }) => {
-      const { h, hydrate: rawHydrate } = o;
-      const hydrate = (a: unknown, b: unknown) =>
-        rawHydrate.length === 2 ? rawHydrate(a, b) : rawHydrate(b, a);
-      const container = duplicate(islet.begin, islet.end);
-      const staticVNode = await toVirtual(h, islet.begin, islets);
-      hydrate(staticVNode, container);
-      replaceNodes(islet.begin, islet.end, container);
-    });
-  };
-
-  setTimeout(
-    () =>
-      "scheduler" in globalThis
-        ? globalThis.scheduler!.postTask(renderTask)
-        : setTimeout(renderTask, 0),
-    1000
-  );
-};
-
-const createIslandScriptComment = (
-  prefix: string,
-  { url }: IslandDef,
-  isletId
-) => {
+const createIslandScript = (prefix: string, { url, exportName }: IslandDef) => {
   const id = createIslandId(url);
-  return storeFunctionExecution(
-    hydrateComment,
-    `${prefix}/islands/${id}.js`,
-    isletId
-  );
+  return scripted(hydrate, `${prefix}/islands/${id}.js`, exportName);
 };
 
 const transformVirtualNodeToStatic = (params, islands) => {
@@ -613,10 +398,8 @@ export const createJsx =
     jsx,
     h,
     Fragment,
-    prefix = "",
-    isValidElement,
     cloneElement,
-    toChildArray,
+    prefix = "",
     key: islandKey = "default",
   }) =>
   (
@@ -627,86 +410,46 @@ export const createJsx =
   ) => {
     const islands = getIslands(islandKey);
     const island = islands.get(type);
-    const children = h(type, params, key, ...props);
-    if (!island) return children;
-
     const isletData = !island
       ? null
       : {
           url: `${prefix}/islands/${createIslandId(island.url)}.js`,
           exportName: island.exportName,
-          slots: Object.entries(params)
-            .filter(([_key, value]) => isValidElement(value))
-            .map(([key]) => key),
           props: jsonStringifyWithBigIntSupport({
-            ...params,
-            ...Object.fromEntries(
-              Object.entries(params)
-                .filter(([_key, value]) => isValidElement(value))
-                .map(([key]) => [key, undefined])
-            ),
+            ...transformVirtualNodeToStatic(params, islands),
+            children: undefined,
           }),
         };
-
-    const isletDataId = island ? getHashSync(JSON.stringify(isletData)) : null;
-    storeFunctionExecution((isletDataId: string, isletData: unknown) => {
-      window._ISLET = Object.assign(
-        { [isletDataId]: isletData },
-        window._ISLET || {}
-      );
-    }, ...[isletDataId, isletData]);
-    const isletId = getHashSync(Math.random().toString());
-    createIslandScriptComment(prefix, island, isletId);
-
-    const newProps = {};
-    for (const [key, value] of Object.entries(children.props)) {
-      if (toChildArray(value).some((value) => isValidElement(value)))
-        newProps[key] = toChildArray(value).flatMap((value) =>
-          !isValidElement(value)
-            ? value
-            : [
-                h("islet", {
-                  "data-islet": JSON.stringify({
-                    id: isletId,
-                    dataId: isletDataId,
-                    type: "slot",
-                    slotId: key,
-                    begin: true,
-                  }),
-                }),
-                value,
-                h("islet", {
-                  "data-islet": JSON.stringify({
-                    id: isletId,
-                    dataId: isletDataId,
-                    type: "slot",
-                    slotId: key,
-                    end: true,
-                  }),
-                }),
-              ]
+    const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
+    if (island) {
+      storeFunctionExecution((isletId: string, isletData: unknown) => {
+        window._ISLET = Object.assign(
+          { [isletId]: isletData },
+          window._ISLET || {}
         );
+      }, ...[isletId, isletData]);
     }
-
-    return h(Fragment, {
-      children: [
-        h("islet", {
-          "data-islet": JSON.stringify({
-            id: isletId,
-            dataId: isletDataId,
-            begin: true,
-            type: "island",
+    const className = island ? createIslandScript(prefix, island) : null;
+    const children = h(type, params, key, ...props);
+    const result = h(island ? "fragment" : Fragment, {
+      style: { display: "contents" },
+      className,
+      ...(island
+        ? { "data-islet-type": "island", "data-islet-id": isletId }
+        : {}),
+      children: !island
+        ? children
+        : cloneElement(children, {
+            children: children.props.children
+              ? [
+                  h("fragment", {
+                    style: { display: "contents" },
+                    "data-islet-type": "slot",
+                    children: children.props.children,
+                  }),
+                ]
+              : null,
           }),
-        }),
-        cloneElement(children, newProps),
-        h("islet", {
-          "data-islet": JSON.stringify({
-            id: isletId,
-            dataId: isletDataId,
-            end: true,
-            type: "island",
-          }),
-        }),
-      ],
     });
+    return island ? result : result.props.children;
   };

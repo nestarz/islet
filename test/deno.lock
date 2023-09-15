@@ -1,9 +1,6 @@
 {
   "version": "2",
   "remote": {
-    "https://deno.land/std@0.134.0/fmt/colors.ts": "30455035d6d728394781c10755351742dd731e3db6771b1843f9b9e490104d37",
-    "https://deno.land/std@0.134.0/testing/_diff.ts": "9d849cd6877694152e01775b2d93f9d6b7aef7e24bfe3bfafc4d7a1ac8e9f392",
-    "https://deno.land/std@0.134.0/testing/asserts.ts": "b0ef969032882b1f7eb1c7571e313214baa1485f7b61cf35807b2434e254365c",
     "https://deno.land/std@0.140.0/_util/assert.ts": "e94f2eb37cebd7f199952e242c77654e43333c1ac4c5c700e929ea3aa5489f74",
     "https://deno.land/std@0.140.0/_util/os.ts": "3b4c6e27febd119d36a416d7a97bd3b0251b77c88942c8f16ee5953ea13e2e49",
     "https://deno.land/std@0.140.0/bytes/bytes_list.ts": "67eb118e0b7891d2f389dad4add35856f4ad5faab46318ff99653456c23b025d",
@@ -76,63 +73,34 @@
     "https://deno.land/x/kv_toolbox@0.0.3/batchedAtomic.ts": "5160cebd05cf33e8fac48acd7e39b63562fabf69ad557b47ff23d52fcecefb2e",
     "https://deno.land/x/kv_toolbox@0.0.3/blob.ts": "2efddd1648714331774261ad5281d707def80f9d4ebcf6c90dbd3076a34d3f1f",
     "https://deno.land/x/kv_toolbox@0.0.3/keys.ts": "161bb4cfe9b7625a7b55d5f7e545ace34add39e58d2a0e5e67750f185789f3ac",
-    "https://deno.land/x/lol_html@0.0.6/lol_html.js": "efa396ae3506f40d81af8917b2a04c955550f738774e5ba5e3d2f9b10bb3bd02",
-    "https://deno.land/x/lol_html@0.0.6/mod.ts": "308001155134d2b3d65f55d25eada007c88aa01b5c4866ac02c59953c83563f2",
     "https://deno.land/x/pipe@0.3.0/mod.ts": "fc7380fb65603ce8111b5d40522a4675cc51654ea1272980923b262893eb4e5e",
     "https://deno.land/x/rutt@0.1.0/mod.ts": "4662ad4f687740ac612b779ed4c62eecebd718b56d24a07f719ec3b24464c139",
     "https://deno.land/x/scripted@0.0.3/mod.ts": "eff80d72f1e3bbdfc644a1d34c355f2da5eb0076c1077b8a8307a333a503d3b1",
     "https://esm.sh/*preact@10.16.0/compat?target=es2022&deps=preact/hooks": "5c2b1801553021e53e354fc9c9d2a72d17ff2a1b326e134a88654b04bb10e8ac",
     "https://esm.sh/*preact@10.16.0/hooks?target=es2022": "01f61930350f971349954c9bb637ff96926470e355927230b41b0deb3b11f9f0",
     "https://esm.sh/*preact@10.16.0/jsx-runtime.js?target=es2022": "e41310a5cd767118045030adf45b6ab67dd7565d167e453c8209c3857c08e031",
-    "https://esm.sh/gh/worker-tools/html-rewriter@db2bd9803f/index.ts": "07b35a0995225f68c62ac676aa8c4e3760e53c1445bd815e930a907264564ead",
-    "https://esm.sh/html-rewriter-wasm@0.4.1": "c54d214564cafdcada24d7e82f1af482409939a9bf41018d71486f385ab2d5b7",
-    "https://esm.sh/preact-render-to-string@5.2.6": "e9bd20355a3f5a902dd58ff0d97e3ec60fffa8d130ce768f0d9570cfd1bb86d0",
     "https://esm.sh/preact-render-to-string@6.2.1?target=es2022&deps=preact@10.16.0": "61d73d56ceb86d1f2b54407294fa6ae47af9c61fb523acc3821d7e045f1f0247",
     "https://esm.sh/preact@10.16.0?target=es2022": "4b26e5762ac520c02a20dd648f424ecaf1c4959b23bb3b0ad9a575e2025ea180",
-    "https://esm.sh/preact@10.17.1": "d9d10d95cd047fd2c26bb68e760a87d3747fafc64a1e54049095682c69c7491a",
     "https://esm.sh/react-dom@18.2.0/client?dev": "74c5b135cf1c453d1f4a4325bc3c114f752567a6983407fdcec9306848fd642a",
     "https://esm.sh/react-dom@18.2.0/server?dev": "954206001b5358e60cba876c9eb8be818a0871ceecaee207c1931b49a66c0537",
     "https://esm.sh/react-dom@18.2.0?dev": "b01b88bde2ec9a0f63e3721d1cb841e40f43057da556aa2e8d88f17280622521",
     "https://esm.sh/react@18.2.0/jsx-runtime": "8e5e22ae56773ef989a95772b9b9f6d4e5d7891f2d20875c25e51015df018f7c",
     "https://esm.sh/react@18.2.0?dev": "20a29b08171987a0138aaa58ef99378755c94bc93de8ac21a5b4d4516c0a8474",
-    "https://esm.sh/stable/preact@10.13.0/deno/preact.js": "20da7180ef91ea6de3814b14bbfbcac7bb40b4d4ed193a5843513f1a9b3665c7",
     "https://esm.sh/stable/preact@10.16.0/X-ZS8q/es2022/compat.js": "b3d265e97dbcf528bebde23cc1a3d9bc106c6aef705c3a4c3c3d5623d205d208",
     "https://esm.sh/stable/preact@10.16.0/X-ZS8q/es2022/hooks.js": "ef4e0f33b9fe591852b90accb3c98a3582350d3f008e08f18d229060ce6dec83",
     "https://esm.sh/stable/preact@10.16.0/X-ZS8q/es2022/jsx-runtime.js": "00ccdc9043c191df58bacd052403f9c354a25daee78e83d57fa19739e5c3a1e7",
     "https://esm.sh/stable/preact@10.16.0/es2022/preact.mjs": "0e231caa4c8544395b37a5a500affb74709ef4a357dc2278eca12a54abcfd47a",
-    "https://esm.sh/stable/preact@10.17.1/denonext/preact.mjs": "0f2f159289b4502eea839f4b57cef910ad03d63213ac5301e6767326b060d8f6",
     "https://esm.sh/stable/react@18.2.0/deno/jsx-runtime.js": "4f0af3ce145cdcac00e75bea66889f321aa1d0c63714ae71986a6540f881fe04",
     "https://esm.sh/stable/react@18.2.0/deno/react.development.mjs": "e53b0a2dd592fd67dc3ac062bfa2b66c8a9ea746afcc458e3731d80bf3a52c9a",
     "https://esm.sh/stable/react@18.2.0/denonext/react.development.mjs": "88729b33eccbea2c09894f07459f32911777721a3b50fd32151182e82c4351e2",
     "https://esm.sh/to-readable-stream@4.0.0": "50a398e114f478cb5b47e48c1fa734afccceb5867384e9876a75d05a9cc5ca66",
-    "https://esm.sh/v110/preact-render-to-string@5.2.6/deno/preact-render-to-string.js": "02f72601cc274868f32dd3e1231d25e2b3990d9231f1025c9a2e07887d33b290",
     "https://esm.sh/v119/react-dom@18.2.0/deno/client.development.js": "da1f55bba5eec9e370b952eb780e1fee2e989a7c5cc408db99725a48592dfcf9",
     "https://esm.sh/v119/react-dom@18.2.0/deno/react-dom.development.mjs": "ac5ed431143512843656d9d6b4842c90f9d612dd682044f9da11a4fb2f7ab3ac",
     "https://esm.sh/v119/react-dom@18.2.0/deno/server.development.js": "13fac8daa4cdc9f2b110f96e7610c1b14519fecd93e31bacfcf326eb55215d3b",
     "https://esm.sh/v119/scheduler@0.23.0/deno/scheduler.development.mjs": "4946d311b9ae057a3bfd149624d855dfcd370d035696c444a242022e035119f4",
-    "https://esm.sh/v127/html-rewriter-wasm@0.4.1/denonext/html-rewriter-wasm.mjs": "8a30e8b6c670a95c7f92e3046f129119d549fae4e3cfc43803d6d68b21cc0298",
     "https://esm.sh/v129/react-dom@18.2.0/denonext/react-dom.development.mjs": "2153a5945a5ac99e38dc45f80e66e24025090813116c790544620c7be201eb32",
     "https://esm.sh/v129/scheduler@0.23.0/denonext/scheduler.development.mjs": "34c1ba81e50c9c58e24de51551a8617592b1e99b192394bbd68f5957ea8e52bb",
     "https://esm.sh/v130/to-readable-stream@4.0.0/denonext/to-readable-stream.mjs": "944f11db6eab14f8e8c0209de07dc757ba1394bebba1bb46b02af07dcf447553",
-    "https://esm.sh/v131/preact-render-to-string@6.2.1/X-ZC9wcmVhY3RAMTAuMTYuMA/es2022/preact-render-to-string.mjs": "9989b49fdb79ce753eec989ab26c025e0c029b40bcd04098e6338f69a38c995c",
-    "https://esm.sh/v132/gh/worker-tools/html-rewriter@db2bd9803f/denonext/index.ts.js": "b30be567c4a059b741b3f250c2d54028a8a951c62a70fa5ab28d10aea769d24a",
-    "https://raw.githubusercontent.com/worker-tools/html-rewriter/db2bd9803f/index.ts": "4e287b8929fbe8dba02de604f9d01b07323c81d1c62fef4094ccd10452493b11",
-    "https://raw.githubusercontent.com/worker-tools/html-rewriter/db2bd9803f/vendor/asyncify.js": "a70e36d0143de2de2e813917d740259ee71bcf1df75ceeaac0c1bc0ef7cc9a29",
-    "https://raw.githubusercontent.com/worker-tools/html-rewriter/db2bd9803f/vendor/html_rewriter.js": "00d95be2544925661bcf0c62afc07dcba610c1c6f157d11a9eb3709da7005ef7",
-    "https://raw.githubusercontent.com/worker-tools/html-rewriter/master/index.ts": "4e287b8929fbe8dba02de604f9d01b07323c81d1c62fef4094ccd10452493b11",
-    "https://raw.githubusercontent.com/worker-tools/html-rewriter/master/vendor/asyncify.js": "a70e36d0143de2de2e813917d740259ee71bcf1df75ceeaac0c1bc0ef7cc9a29",
-    "https://raw.githubusercontent.com/worker-tools/html-rewriter/master/vendor/html_rewriter.js": "00d95be2544925661bcf0c62afc07dcba610c1c6f157d11a9eb3709da7005ef7",
-    "https://raw.githubusercontent.com/worker-tools/resolvable-promise/master/index.ts": "67d11f839d8e831074668e29e22c582d0ec0bbfcbf49d639ed33d9baffefed36"
-  },
-  "npm": {
-    "specifiers": {
-      "html-rewriter-wasm": "html-rewriter-wasm@0.4.1"
-    },
-    "packages": {
-      "html-rewriter-wasm@0.4.1": {
-        "integrity": "sha512-lNovG8CMCCmcVB1Q7xggMSf7tqPCijZXaH4gL6iE8BFghdQCbaY5Met9i1x2Ex8m/cZHDUtXK9H6/znKamRP8Q==",
-        "dependencies": {}
-      }
-    }
+    "https://esm.sh/v131/preact-render-to-string@6.2.1/X-ZC9wcmVhY3RAMTAuMTYuMA/es2022/preact-render-to-string.mjs": "9989b49fdb79ce753eec989ab26c025e0c029b40bcd04098e6338f69a38c995c"
   }
 }
