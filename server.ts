@@ -17,6 +17,9 @@ const createIslandId = (key: string) =>
   getHashSync([buildId, key].filter((v) => v).join("_"));
 const calcKvKey = (key: string) => ["_islet", buildId, key];
 
+export const getIslandUrl = (fn, key = "default") =>
+  `/islands/${createIslandId(getIslands(key).get(fn)?.url!)}.js`;
+
 export const config = {
   routeOverride: "/islands/:id*",
 };
@@ -35,7 +38,7 @@ function deepApply<T>(data: T, applyFn): T {
       const r = applyFn(key, value, p);
       return r;
     },
-    data
+    data,
   );
   const clean = Object.entries(entries).map(([key, v]) => {
     const value = isObject(v) ? deepApply(v, applyFn) : v;
@@ -75,17 +78,18 @@ const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
 
 const esbuildState = ((
   done = false,
-  ongoingPromise: null | Promise<null | void> = null
+  ongoingPromise: null | Promise<null | void> = null,
 ) => ({
   isInitialized: () => done,
   init: () => {
     if (ongoingPromise) return ongoingPromise;
     const id = initCounter();
     console.time(`[init-${id}] ${esbuild.version}`);
-    const wasmURL = `https://raw.githubusercontent.com/esbuild/deno-esbuild/v${esbuild.version}/esbuild.wasm`;
+    const wasmURL =
+      `https://raw.githubusercontent.com/esbuild/deno-esbuild/v${esbuild.version}/esbuild.wasm`;
     ongoingPromise = esbuild
       .initialize(
-        isDenoDeploy || !globalThis.Worker ? { wasmURL, worker: false } : {}
+        isDenoDeploy || !globalThis.Worker ? { wasmURL, worker: false } : {},
       )
       .then(() => {
         done = true;
@@ -116,7 +120,7 @@ const debuild = async (paths: string[]) => {
       kvUtils
         .get(kv, calcKvKey(path))
         .then((contents) => output.outputFiles?.push({ path, contents }))
-    )
+    ),
   );
   return output;
 };
@@ -130,7 +134,7 @@ const savebuild = async (key: string, build: EsBuild) => {
         .catch((e) =>
           console.error(`Error: Saving file to KV failed ${path}\n`, e)
         )
-    )
+    ),
   );
 
   console.time("[island] saving");
@@ -138,9 +142,11 @@ const savebuild = async (key: string, build: EsBuild) => {
     .set(kv, calcKvKey(key), new TextEncoder().encode(JSON.stringify(paths)))
     .catch(console.error)
     .then(async () => {
-      for await (const iterator of kv.list({ prefix: ["_islet"] }))
-        if (!iterator.key.includes(buildId))
+      for await (const iterator of kv.list({ prefix: ["_islet"] })) {
+        if (!iterator.key.includes(buildId)) {
           await kv.delete(iterator.key).catch(console.error);
+        }
+      }
     })
     .finally(() => console.timeEnd("[island] saving"));
 
@@ -159,7 +165,7 @@ const transformScript = async (script: string) => {
 
 export const addScripts = async (
   html: string | ReadableStream,
-  minify = true
+  minify = true,
 ): Promise<typeof html> => {
   const scripts = collectAndCleanScripts();
   const code = minify ? await transformScript(scripts) : scripts;
@@ -167,10 +173,12 @@ export const addScripts = async (
   if (html instanceof ReadableStream) {
     return html.pipeThrough(new SuffixTransformStream(script));
   }
-  return `${html.replace(
-    html.includes("</body>") ? /(<\/body>)/ : /(.*)/,
-    (_, $1) => `${script}${$1}`
-  )}`;
+  return `${
+    html.replace(
+      html.includes("</body>") ? /(<\/body>)/ : /(.*)/,
+      (_, $1) => `${script}${$1}`,
+    )
+  }`;
 };
 
 const builds: Map<string, Build> = new Map();
@@ -180,7 +188,7 @@ const createIslands = async (manifest: Manifest) => {
       ...denoPlugins({
         importMapURL: new URL(
           manifest.importMapFileName ?? "import_map.json",
-          manifest.baseUrl
+          manifest.baseUrl,
         ).href,
         loader: isDenoDeploy ? "portable" : "native",
       }),
@@ -190,7 +198,7 @@ const createIslands = async (manifest: Manifest) => {
         ([, island]) => ({
           in: island.url,
           out: createIslandId(island.url),
-        })
+        }),
       ),
     ],
     format: "esm",
@@ -217,12 +225,10 @@ const createIslands = async (manifest: Manifest) => {
   if (!builds.has(key)) {
     builds.set(
       key,
-      paths
-        ? await debuild(paths)
-        : await savebuild(
-            key,
-            await esbuildState.init().then(() => esbuild.build(buildConfig))
-          )
+      paths ? await debuild(paths) : await savebuild(
+        key,
+        await esbuildState.init().then(() => esbuild.build(buildConfig)),
+      ),
     );
   }
   console.timeEnd(id);
@@ -238,30 +244,31 @@ export const createHandler = (manifest: Manifest) => {
     Promise<{ get: (id: string) => ArrayBuffer | null | undefined }>
   > = new Map();
   return async (_req: Request, _ctx: any, match: Record<string, string>) => {
-    if (!promiseCache.has(manifest.baseUrl.href))
+    if (!promiseCache.has(manifest.baseUrl.href)) {
       promiseCache.set(manifest.baseUrl.href, createIslands(manifest));
+    }
     const islands = await promiseCache.get(manifest.baseUrl.href)!;
     const contents = islands.get(match.id);
     return contents
       ? new Response(contents, {
-          headers: {
-            "content-type": "text/javascript",
-            "Cache-Control": "public, max-age=31536000, immutable",
-          },
-        })
+        headers: {
+          "content-type": "text/javascript",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      })
       : new Response(null, { status: 404 });
   };
 };
 
 type HydrateFn = (
   container: Element | Document,
-  initialChildren: VNode
+  initialChildren: VNode,
 ) => Root;
 
 const hydrate = (
   node: HTMLElement,
   specifier: string,
-  exportName: string
+  exportName: string,
 ): void => {
   const closest = node.parentElement?.closest("[data-islet-type=island]");
   if (closest) return;
@@ -273,23 +280,24 @@ const hydrate = (
       .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 
   const processAttributes = (
-    attributes: NamedNodeMap
+    attributes: NamedNodeMap,
   ): Record<string, unknown> =>
     Array.from(attributes).reduce(
       (acc, { name, value }) => {
-        acc[name === "class" ? "className" : name] =
-          name === "style" ? parseStyleStr(value) : value;
+        acc[name === "class" ? "className" : name] = name === "style"
+          ? parseStyleStr(value)
+          : value;
         return acc;
       },
-      { key: Math.random() }
+      { key: Math.random() },
     );
 
   const getType = async (node: HTMLElement) =>
     node.dataset?.isletType === "island"
       ? await import(window._ISLET[node.dataset.isletId].url).then(
-          (module) =>
-            module[window._ISLET[node.dataset.isletId].exportName ?? "default"]
-        )
+        (module) =>
+          module[window._ISLET[node.dataset.isletId].exportName ?? "default"],
+      )
       : null;
 
   const toVirtual = async (h, node: Element | null): Promise<any> => {
@@ -297,12 +305,11 @@ const hydrate = (
 
     const tagName = node.tagName?.toLowerCase();
     const attributes = processAttributes(node.attributes ?? {});
-    const children =
-      node.childNodes.length > 0
-        ? await Promise.all(
-            [...node.childNodes].map((child) => toVirtual(h, child))
-          )
-        : null;
+    const children = node.childNodes.length > 0
+      ? await Promise.all(
+        [...node.childNodes].map((child) => toVirtual(h, child)),
+      )
+      : null;
 
     const type = await getType(node);
     if (!type) return h(tagName, attributes, children);
@@ -310,7 +317,7 @@ const hydrate = (
     const islandProps = JSON.parse(window._ISLET[node.dataset.isletId].props);
     islandProps.children = await toVirtual(
       h,
-      node.querySelector("[data-islet-type]")
+      node.querySelector("[data-islet-type]"),
     );
 
     return h(tagName, attributes, h(type, islandProps));
@@ -330,7 +337,7 @@ const hydrate = (
         } else if (v?.type) {
           return [k, h(v.type, await transformStaticNodeToVirtual(h, v.props))];
         } else return [k, v];
-      })
+      }),
     );
 
   const renderTask = () =>
@@ -342,7 +349,7 @@ const hydrate = (
       const container = withFragment ? document.createDocumentFragment() : node;
       const children = await toVirtual(
         h,
-        node.querySelector("[data-islet-type]")
+        node.querySelector("[data-islet-type]"),
       );
       const props = JSON.parse(window._ISLET[node.dataset.isletId].props);
       props.children = children;
@@ -364,12 +371,11 @@ const transformVirtualNodeToStatic = (params, islands) => {
   const newParams = deepApply(
     params,
     (key: string, value: unknown, obj: Record<string, unknown>) => {
-      const component =
-        key === "type" &&
-        islands.get(value?.type ?? value) &&
-        typeof value === "function"
-          ? islands.get(value?.type ?? value)
-          : null;
+      const component = key === "type" &&
+          islands.get(value?.type ?? value) &&
+          typeof value === "function"
+        ? islands.get(value?.type ?? value)
+        : null;
       if (component) {
         const id = createIslandId(component.url);
         return {
@@ -380,76 +386,72 @@ const transformVirtualNodeToStatic = (params, islands) => {
         };
       }
       return key.startsWith("__") ? { ...obj, [key]: undefined } : obj;
-    }
+    },
   );
   return newParams;
 };
 
 const jsonStringifyWithBigIntSupport = (data: unknown) => {
   if (data !== undefined) {
-    return JSON.stringify(data, (_, v) =>
-      typeof v === "bigint" ? `${v}#bigint` : v
+    return JSON.stringify(
+      data,
+      (_, v) => typeof v === "bigint" ? `${v}#bigint` : v,
     ).replace(/"(-?\d+)#bigint"/g, (_, a) => a);
   }
 };
 
-export const createJsx =
-  ({
-    jsx,
-    h,
-    Fragment,
-    cloneElement,
-    prefix = "",
-    key: islandKey = "default",
-  }) =>
-  (
-    type: Parameters<typeof jsx>[0],
-    params: Parameters<typeof jsx>[1],
-    key: Parameters<typeof jsx>[2],
-    ...props
-  ) => {
-    const islands = getIslands(islandKey);
-    const island = islands.get(type);
-    const isletData = !island
-      ? null
-      : {
-          url: `${prefix}/islands/${createIslandId(island.url)}.js`,
-          exportName: island.exportName,
-          props: jsonStringifyWithBigIntSupport({
-            ...transformVirtualNodeToStatic(params, islands),
-            children: undefined,
-          }),
-        };
-    const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
-    if (island) {
-      storeFunctionExecution((isletId: string, isletData: unknown) => {
-        window._ISLET = Object.assign(
-          { [isletId]: isletData },
-          window._ISLET || {}
-        );
-      }, ...[isletId, isletData]);
-    }
-    const className = island ? createIslandScript(prefix, island) : null;
-    const children = h(type, params, key, ...props);
-    const result = h(island ? "fragment" : Fragment, {
-      style: { display: "contents" },
-      className,
-      ...(island
-        ? { "data-islet-type": "island", "data-islet-id": isletId }
-        : {}),
-      children: !island
-        ? children
-        : cloneElement(children, {
-            children: children.props.children
-              ? [
-                  h("fragment", {
-                    style: { display: "contents" },
-                    "data-islet-type": "slot",
-                    children: children.props.children,
-                  }),
-                ]
-              : null,
-          }),
-    });
-    return island ? result : result.props.children;
+export const createJsx = ({
+  jsx,
+  h,
+  Fragment,
+  cloneElement,
+  prefix = "",
+  key: islandKey = "default",
+}) =>
+(
+  type: Parameters<typeof jsx>[0],
+  params: Parameters<typeof jsx>[1],
+  key: Parameters<typeof jsx>[2],
+  ...props
+) => {
+  const islands = getIslands(islandKey);
+  const island = islands.get(type);
+  const isletData = !island ? null : {
+    url: `${prefix}/islands/${createIslandId(island.url)}.js`,
+    exportName: island.exportName,
+    props: jsonStringifyWithBigIntSupport({
+      ...transformVirtualNodeToStatic(params, islands),
+      children: undefined,
+    }),
   };
+  const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
+  if (island) {
+    storeFunctionExecution((isletId: string, isletData: unknown) => {
+      window._ISLET = Object.assign(
+        { [isletId]: isletData },
+        window._ISLET || {},
+      );
+    }, ...[isletId, isletData]);
+  }
+  const className = island ? createIslandScript(prefix, island) : null;
+  const children = h(type, params, key, ...props);
+  const result = h(island ? "fragment" : Fragment, {
+    style: { display: "contents" },
+    className,
+    ...(island
+      ? { "data-islet-type": "island", "data-islet-id": isletId }
+      : {}),
+    children: !island ? children : cloneElement(children, {
+      children: children.props.children
+        ? [
+          h("fragment", {
+            style: { display: "contents" },
+            "data-islet-type": "slot",
+            children: children.props.children,
+          }),
+        ]
+        : null,
+    }),
+  });
+  return island ? result : result.props.children;
+};
