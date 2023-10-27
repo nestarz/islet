@@ -151,19 +151,11 @@ const buildSnapshot = (
 ): SnapshotReader => {
   const absWorkingDirLen = toFileUrl(buildOptions.absWorkingDir!).href.length +
     1;
-  const files = new Map<string, ReadableStream<Uint8Array>>();
+  const files = new Map<string, Uint8Array>();
   const dependencies = new Map<string, string[]>();
   for (const file of bundle.outputFiles!) {
     const path = toFileUrl(file.path).href.slice(absWorkingDirLen);
-    files.set(
-      path,
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(file.contents);
-          controller.close();
-        },
-      }),
-    );
+    files.set(path, file.contents);
   }
 
   const metaOutputs = new Map(Object.entries(bundle.metafile!.outputs));
@@ -177,7 +169,17 @@ const buildSnapshot = (
 
   return {
     getPaths: () => Array.from(files.keys()),
-    read: (path: string) => Promise.resolve(files.get(path) ?? null),
+    read: (path: string) =>
+      Promise.resolve(
+        files.get(path)
+          ? new ReadableStream({
+            start(controller) {
+              controller.enqueue(files.get(path)!);
+              controller.close();
+            },
+          })
+          : null,
+      ),
     dependencies: (path: string) => dependencies.get(path) ?? [],
     json: () =>
       Object.fromEntries(
