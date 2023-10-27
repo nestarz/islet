@@ -271,10 +271,10 @@ const createIslands = async (
     plugins: [
       ...denoPlugins({
         loader: "native",
-        configPath: new URL(
+        importMapURL: new URL(
           manifest.importMapFileName ?? "deno.json",
           manifest.baseUrl,
-        ).href.slice(7),
+        ).href,
       }),
     ],
     entryPoints: [
@@ -354,14 +354,15 @@ export const createHandler = async (manifest: Manifest) => {
     : null;
   if (json?.build_id === buildId) setBuildId(json.build_id);
 
+  if (!promiseCache.has(manifest.baseUrl.href)) {
+    promiseCache.set(
+      manifest.baseUrl.href,
+      createIslands(manifest, snapshot, snapshotPath),
+    );
+  }
+  const islands = await promiseCache.get(manifest.baseUrl.href)!;
+
   return async (_req: Request, _ctx: any, match: Record<string, string>) => {
-    if (!promiseCache.has(manifest.baseUrl.href)) {
-      promiseCache.set(
-        manifest.baseUrl.href,
-        createIslands(manifest, snapshot, snapshotPath),
-      );
-    }
-    const islands = await promiseCache.get(manifest.baseUrl.href)!;
     const contents = await islands.get(join(manifest.prefix, match.id));
     return contents
       ? new Response(contents, {
