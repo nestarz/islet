@@ -349,16 +349,17 @@ export const createHandler = async (manifest: Manifest) => {
   const json: Snapshot | null = JSON.parse(
     await Deno.readTextFile(snapshotPath).catch(() => "null"),
   );
-  const snapshot = json?.build_id === buildId
-    ? snapshotFromJson(json, buildDir)
-    : null;
   if (
-    json?.build_id !== buildId &&
+    json?.build_id &&
     (await Deno.permissions.query({ name: "write", path: Deno.cwd() }))
         .state === "denied"
   ) {
     setBuildId(json.build_id);
   }
+
+  const snapshot = json?.build_id === buildId
+    ? snapshotFromJson(json, buildDir)
+    : null;
   console.log(json, buildId, snapshot);
 
   if (!promiseCache.has(manifest.baseUrl.href)) {
