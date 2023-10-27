@@ -40,7 +40,7 @@ let buildId = getHashSync(
 console.log(files.toSorted((a, b) => a.url.localeCompare(b.url)), buildId);
 const setBuildId = (id: string) => (buildId = id);
 
-const createIslandId = (key: string) =>
+const createIslandId = (key: string) => console.log(relative(import.meta.resolve("./"), key)) ??
   getHashSync(
     [buildId, relative(import.meta.resolve("./"), key)]
       .filter((v) => v)
