@@ -30,7 +30,7 @@ for await (
     exts: [".js", ".jsx", ".tsx", ".ts", ".json"],
   })
 ) {
-  if (!path.includes("_islet")) {
+  if (!path.includes("_islet") && !path.includes("islet")) {
     files.push({ url: path, size: (await Deno.stat(path)).size });
   }
 }
@@ -146,16 +146,15 @@ interface SnapshotReader {
 }
 
 const buildSnapshot = (
-  buildOptions: esbuild.BuildOptions,
   bundle: EsBuild,
 ): SnapshotReader => {
-  const absWorkingDirLen = toFileUrl(buildOptions.absWorkingDir!).href.length +
-    1;
   const files = new Map<string, Uint8Array>();
   const dependencies = new Map<string, string[]>();
   for (const file of bundle.outputFiles!) {
-    const path = toFileUrl(file.path).href.slice(absWorkingDirLen);
-    files.set(path, file.contents);
+    files.set(
+      relative(Deno.cwd(), toFileUrl(file.path).pathname).split("..").pop()!,
+      file.contents,
+    );
   }
 
   const metaOutputs = new Map(Object.entries(bundle.metafile!.outputs));
@@ -163,8 +162,8 @@ const buildSnapshot = (
   for (const [path, entry] of metaOutputs.entries()) {
     const imports = entry.imports
       .filter(({ kind }) => kind === "import-statement")
-      .map(({ path }) => path);
-    dependencies.set(path, imports);
+      .map(({ path }) => path.split("..").pop()!);
+    dependencies.set(path.split("..").pop()!, imports);
   }
 
   return {
@@ -206,7 +205,9 @@ const snapshotFromJson = (
       const filePath = files.get(path);
       if (filePath !== undefined) {
         try {
-          const file = await Deno.open(filePath, { read: true });
+          const file = await Deno.open(join(Deno.cwd(), filePath), {
+            read: true,
+          });
           return file.readable;
         } catch (_err) {
           return null;
@@ -262,7 +263,7 @@ const createIslands = async (
   snapshotPath: string,
 ): Promise<IslandHandlerGetter> => {
   if (initSnapshot) {
-    return { get: (id: string) => initSnapshot.read("islands/" + id) };
+    return { get: (id: string) => initSnapshot.read(id) };
   }
 
   const absWorkingDir = Deno.cwd();
@@ -309,7 +310,7 @@ const createIslands = async (
   const buildDir = dirname(snapshotPath);
   const id = `[esbuild-${buildCounter()}] build`;
   console.time(id);
-  const snapshotReader = buildSnapshot(buildConfig, bundle);
+  const snapshotReader = buildSnapshot(bundle);
   console.timeEnd(id);
   await Deno.remove(buildDir, { recursive: true }).catch(() => null);
   await Deno.mkdir(buildDir, { recursive: true }).catch(() => null);
@@ -318,11 +319,13 @@ const createIslands = async (
       const data = await snapshotReader.read(fileName);
       if (data === null) return;
 
-      const path = join(buildDir, fileName);
+      const path = join(manifest.buildDir ?? "_islet", fileName);
+      console.log(path);
       await Deno.mkdir(dirname(path), { recursive: true }).catch(() => null);
       return Deno.writeFile(path, data);
     }),
   );
+  console.log(snapshotReader.json());
 
   await Deno.writeTextFile(
     snapshotPath,
@@ -334,7 +337,7 @@ const createIslands = async (
   );
 
   return {
-    get: (id: string) => snapshotReader.read("islands/" + id),
+    get: (id: string) => snapshotReader.read(id),
   };
 };
 
@@ -342,7 +345,7 @@ export const createHandler = async (manifest: Manifest) => {
   const promiseCache: Map<string, Promise<IslandHandlerGetter>> = new Map();
 
   const buildDir = manifest.buildDir ?? "_islet";
-  const snapshotPath = join(buildDir, "snapshot.json");
+  const snapshotPath = join(buildDir, manifest.prefix ?? "", "snapshot.json");
   const json: Snapshot | null = JSON.parse(
     await Deno.readTextFile(snapshotPath).catch(() => "null"),
   );
@@ -359,7 +362,7 @@ export const createHandler = async (manifest: Manifest) => {
       );
     }
     const islands = await promiseCache.get(manifest.baseUrl.href)!;
-    const contents = await islands.get(match.id);
+    const contents = await islands.get(join(manifest.prefix, match.id));
     return contents
       ? new Response(contents, {
         headers: {
