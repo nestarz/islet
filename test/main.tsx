@@ -27,7 +27,7 @@ await Deno.serve(
       (body: ReadableStream) =>
         new Response(body, { headers: { "content-type": "text/html" } })
     ),
-    [Islands.config.routeOverride]: Islands.createHandler({
+    [Islands.config.routeOverride]: await Islands.createHandler({
       jsxImportSource,
       baseUrl: new URL(import.meta.url),
       prefix: "./islands/",

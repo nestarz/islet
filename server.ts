@@ -1,23 +1,52 @@
 /// <reference lib="deno.unstable" />
 
-import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.ts";
-import * as esbuild from "https://deno.land/x/esbuild@v0.19.2/wasm.js";
-import { getIslands, IslandDef } from "./client.ts";
+import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.2/mod.ts";
+import * as esbuild from "https://deno.land/x/esbuild@v0.19.4/wasm.js";
 import {
   collectAndCleanScripts,
   getHashSync,
   scripted,
   storeFunctionExecution,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
-import * as kvUtils from "https://deno.land/x/kv_toolbox@0.0.3/blob.ts";
+import { walk } from "https://deno.land/std@0.204.0/fs/walk.ts";
+import {
+  dirname,
+  join,
+  relative,
+  toFileUrl,
+} from "https://deno.land/std@0.204.0/path/mod.ts";
 
-const kv = await Deno.openKv();
-const buildId = Deno.env.get("DENO_DEPLOYMENT_ID") || Math.random().toString();
+import { getIslands, IslandDef } from "./client.ts";
+
+interface Snapshot {
+  build_id: string;
+  files: Record<string, string[]>;
+}
+
+const files = [];
+for await (
+  const { path } of walk(Deno.cwd(), {
+    maxDepth: 10,
+    exts: [".js", ".jsx", ".tsx", ".ts", ".json"],
+  })
+) {
+  if (!path.includes("_islet")) {
+    files.push({ url: path, size: (await Deno.stat(path)).size });
+  }
+}
+let buildId = getHashSync(
+  JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
+);
+const setBuildId = (id: string) => (buildId = id);
+
 const createIslandId = (key: string) =>
-  getHashSync([buildId, key].filter((v) => v).join("_"));
-const calcKvKey = (key: string) => ["_islet", buildId, key];
+  getHashSync(
+    [buildId, relative(import.meta.resolve("./"), key)]
+      .filter((v) => v)
+      .join("_"),
+  );
 
-export const getIslandUrl = (fn, key = "default") =>
+export const getIslandUrl = <T>(fn: T, key = "default") =>
   `/islands/${createIslandId(getIslands(key).get(fn)?.url!)}.js`;
 
 export const config = {
@@ -48,7 +77,6 @@ function deepApply<T>(data: T, applyFn): T {
 }
 
 const createCounter = (startAt = 0) => ((i) => () => i++)(startAt); // prettier-ignore
-
 const initCounter = createCounter(0);
 const buildCounter = createCounter(0);
 const transformCounter = createCounter(0);
@@ -70,11 +98,12 @@ export interface Manifest {
   // islands: URL | URL[];
   prefix: string;
   jsxImportSource: string;
+  buildDir?: string;
   importMapFileName?: string;
   esbuildOptions?: Partial<Parameters<typeof esbuild.build>[0]>;
+  openKv: () => ReturnType<typeof Deno.openKv>;
+  dev?: boolean;
 }
-
-const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
 
 const esbuildState = ((
   done = false,
@@ -89,7 +118,9 @@ const esbuildState = ((
       `https://raw.githubusercontent.com/esbuild/deno-esbuild/v${esbuild.version}/esbuild.wasm`;
     ongoingPromise = esbuild
       .initialize(
-        isDenoDeploy || !globalThis.Worker ? { wasmURL, worker: false } : {},
+        !globalThis.Worker || Deno.Command === undefined
+          ? { wasmURL, worker: false }
+          : {},
       )
       .then(() => {
         done = true;
@@ -104,53 +135,91 @@ const esbuildState = ((
 }))();
 
 type EsBuild = Awaited<ReturnType<typeof esbuild.build>>;
-type Build = {
-  outputFiles: {
-    path: string;
-    contents: ArrayBuffer | null | undefined;
-  }[];
-};
 
-const debuild = async (paths: string[]) => {
-  const output: Build = {
-    outputFiles: [],
+interface SnapshotReader {
+  getPaths: () => string[];
+  read: (path: string) => Promise<ReadableStream<Uint8Array> | null>;
+  dependencies: (path: string) => string[];
+  json: () => {
+    [k: string]: string[] | undefined;
   };
-  await Promise.all(
-    paths.map((path) =>
-      kvUtils
-        .get(kv, calcKvKey(path))
-        .then((contents) => output.outputFiles?.push({ path, contents }))
-    ),
-  );
-  return output;
+}
+
+const buildSnapshot = (
+  buildOptions: esbuild.BuildOptions,
+  bundle: EsBuild,
+): SnapshotReader => {
+  const absWorkingDirLen = toFileUrl(buildOptions.absWorkingDir!).href.length +
+    1;
+  const files = new Map<string, ReadableStream<Uint8Array>>();
+  const dependencies = new Map<string, string[]>();
+  for (const file of bundle.outputFiles!) {
+    const path = toFileUrl(file.path).href.slice(absWorkingDirLen);
+    files.set(
+      path,
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(file.contents);
+          controller.close();
+        },
+      }),
+    );
+  }
+
+  const metaOutputs = new Map(Object.entries(bundle.metafile!.outputs));
+
+  for (const [path, entry] of metaOutputs.entries()) {
+    const imports = entry.imports
+      .filter(({ kind }) => kind === "import-statement")
+      .map(({ path }) => path);
+    dependencies.set(path, imports);
+  }
+
+  return {
+    getPaths: () => Array.from(files.keys()),
+    read: (path: string) => Promise.resolve(files.get(path) ?? null),
+    dependencies: (path: string) => dependencies.get(path) ?? [],
+    json: () =>
+      Object.fromEntries(
+        Array.from(files.keys()).map((key) => [key, dependencies.get(key)]),
+      ),
+  };
 };
 
-const savebuild = async (key: string, build: EsBuild) => {
-  const paths = build.outputFiles?.map((d) => d.path);
-  Promise.all(
-    (build.outputFiles ?? []).map(({ path, contents }) =>
-      kvUtils
-        .set(kv, calcKvKey(path), contents)
-        .catch((e) =>
-          console.error(`Error: Saving file to KV failed ${path}\n`, e)
-        )
-    ),
-  );
+const snapshotFromJson = (
+  json: Snapshot,
+  snapshotDirPath: string,
+): SnapshotReader => {
+  const dependencies = new Map<string, string[]>(Object.entries(json.files));
 
-  console.time("[island] saving");
-  await kvUtils
-    .set(kv, calcKvKey(key), new TextEncoder().encode(JSON.stringify(paths)))
-    .catch(console.error)
-    .then(async () => {
-      for await (const iterator of kv.list({ prefix: ["_islet"] })) {
-        if (!iterator.key.includes(buildId)) {
-          await kv.delete(iterator.key).catch(console.error);
+  const files = new Map<string, string>();
+  Object.keys(json.files).forEach((name) => {
+    const filePath = join(snapshotDirPath, name);
+    files.set(name, filePath);
+  });
+
+  return {
+    getPaths: () => Array.from(files.keys()),
+    read: async (path: string) => {
+      const filePath = files.get(path);
+      if (filePath !== undefined) {
+        try {
+          const file = await Deno.open(filePath, { read: true });
+          return file.readable;
+        } catch (_err) {
+          return null;
         }
       }
-    })
-    .finally(() => console.timeEnd("[island] saving"));
 
-  return await debuild(paths!);
+      // Handler will turn this into a 404
+      return null;
+    },
+    dependencies: (path: string) => dependencies.get(path) ?? [],
+    json: () =>
+      Object.fromEntries(
+        Array.from(files.keys()).map((key) => [key, dependencies.get(key)]),
+      ),
+  };
 };
 
 const transformScript = async (script: string) => {
@@ -181,26 +250,40 @@ export const addScripts = async (
   }`;
 };
 
-const builds: Map<string, Build> = new Map();
-const createIslands = async (manifest: Manifest) => {
+interface IslandHandlerGetter {
+  get: (id: string) => ReturnType<SnapshotReader["read"]>;
+}
+
+const createIslands = async (
+  manifest: Manifest,
+  initSnapshot: SnapshotReader | null,
+  snapshotPath: string,
+): Promise<IslandHandlerGetter> => {
+  if (initSnapshot) {
+    return { get: (id: string) => initSnapshot.read("islands/" + id) };
+  }
+
+  const absWorkingDir = Deno.cwd();
   const buildConfig: Parameters<typeof esbuild.build>[0] = {
     plugins: [
       ...denoPlugins({
-        importMapURL: new URL(
-          manifest.importMapFileName ?? "import_map.json",
+        loader: "native",
+        configPath: new URL(
+          manifest.importMapFileName ?? "deno.json",
           manifest.baseUrl,
-        ).href,
-        loader: isDenoDeploy ? "portable" : "native",
+        ).href.slice(7),
       }),
     ],
     entryPoints: [
       ...Array.from(getIslands(manifest.key ?? "default")).map(
         ([, island]) => ({
-          in: island.url,
           out: createIslandId(island.url),
+          in: island.url,
         }),
       ),
     ],
+    platform: "browser",
+    target: ["chrome99", "firefox99", "safari15"],
     format: "esm",
     jsx: manifest.jsxImportSource ? "automatic" : "transform",
     jsxFactory: "h",
@@ -208,47 +291,73 @@ const createIslands = async (manifest: Manifest) => {
     jsxImportSource: manifest.jsxImportSource,
     bundle: true,
     splitting: true,
+    metafile: true,
     treeShaking: true,
-    write: false,
     outdir: manifest.prefix,
-    sourcemap: "linked",
+    absWorkingDir,
+    write: false,
+    sourcemap: manifest.dev ? "linked" : false,
     minify: true,
     ...(manifest.esbuildOptions ?? {}),
   };
+
+  const bundle = await esbuildState
+    .init()
+    .then(() => esbuild.build(buildConfig));
+  const buildDir = dirname(snapshotPath);
   const id = `[esbuild-${buildCounter()}] build`;
   console.time(id);
-  const key = getHashSync(JSON.stringify({ buildConfig }));
-  const pathsBin = await kvUtils.get(kv, calcKvKey(key));
-  const paths = pathsBin
-    ? JSON.parse(new TextDecoder().decode(pathsBin))
-    : pathsBin;
-  if (!builds.has(key)) {
-    builds.set(
-      key,
-      paths ? await debuild(paths) : await savebuild(
-        key,
-        await esbuildState.init().then(() => esbuild.build(buildConfig)),
-      ),
-    );
-  }
+  const snapshotReader = buildSnapshot(buildConfig, bundle);
   console.timeEnd(id);
+  await Deno.remove(buildDir, { recursive: true }).catch(() => null);
+  await Deno.mkdir(buildDir, { recursive: true }).catch(() => null);
+  await Promise.all(
+    snapshotReader.getPaths().map(async (fileName) => {
+      const data = await snapshotReader.read(fileName);
+      if (data === null) return;
+
+      const path = join(buildDir, fileName);
+      await Deno.mkdir(dirname(path), { recursive: true }).catch(() => null);
+      return Deno.writeFile(path, data);
+    }),
+  );
+
+  await Deno.writeTextFile(
+    snapshotPath,
+    JSON.stringify(
+      { build_id: buildId, files: snapshotReader.json() },
+      null,
+      2,
+    ),
+  );
+
   return {
-    get: (id: string) =>
-      builds.get(key)?.outputFiles?.find((d) => d.path.endsWith(id))?.contents,
+    get: (id: string) => snapshotReader.read("islands/" + id),
   };
 };
 
-export const createHandler = (manifest: Manifest) => {
-  const promiseCache: Map<
-    string,
-    Promise<{ get: (id: string) => ArrayBuffer | null | undefined }>
-  > = new Map();
+export const createHandler = async (manifest: Manifest) => {
+  const promiseCache: Map<string, Promise<IslandHandlerGetter>> = new Map();
+
+  const buildDir = manifest.buildDir ?? "_islet";
+  const snapshotPath = join(buildDir, "snapshot.json");
+  const json: Snapshot | null = JSON.parse(
+    await Deno.readTextFile(snapshotPath).catch(() => "null"),
+  );
+  const snapshot = json?.build_id === buildId
+    ? snapshotFromJson(json, buildDir)
+    : null;
+  if (json?.build_id === buildId) setBuildId(json.build_id);
+
   return async (_req: Request, _ctx: any, match: Record<string, string>) => {
     if (!promiseCache.has(manifest.baseUrl.href)) {
-      promiseCache.set(manifest.baseUrl.href, createIslands(manifest));
+      promiseCache.set(
+        manifest.baseUrl.href,
+        createIslands(manifest, snapshot, snapshotPath),
+      );
     }
     const islands = await promiseCache.get(manifest.baseUrl.href)!;
-    const contents = islands.get(match.id);
+    const contents = await islands.get(match.id);
     return contents
       ? new Response(contents, {
         headers: {
