@@ -270,7 +270,6 @@ const createIslands = async (
   const buildConfig: Parameters<typeof esbuild.build>[0] = {
     plugins: [
       ...denoPlugins({
-        loader: "native",
         importMapURL: new URL(
           manifest.importMapFileName ?? "deno.json",
           manifest.baseUrl,
