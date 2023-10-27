@@ -37,6 +37,7 @@ for await (
 let buildId = getHashSync(
   JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
 );
+console.log(files.toSorted((a, b) => a.url.localeCompare(b.url)), buildId);
 const setBuildId = (id: string) => (buildId = id);
 
 const createIslandId = (key: string) =>
@@ -352,6 +353,7 @@ export const createHandler = async (manifest: Manifest) => {
     ? snapshotFromJson(json, buildDir)
     : null;
   if (json?.build_id === buildId) setBuildId(json.build_id);
+  console.log(json, buildId, snapshot);
 
   if (!promiseCache.has(manifest.baseUrl.href)) {
     promiseCache.set(
