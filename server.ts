@@ -23,11 +23,15 @@ interface Snapshot {
   files: Record<string, string[]>;
 }
 
+const withWritePermission =
+  (await Deno.permissions.query({ name: "write", path: Deno.cwd() }))
+    .state === "granted";
+
 const files = [];
 for await (
   const { path } of walk(Deno.cwd(), {
     maxDepth: 10,
-    exts: [".js", ".jsx", ".tsx", ".ts", ".json"],
+    exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
   })
 ) {
   if (!path.includes("_islet") && !path.includes("islet")) {
@@ -37,10 +41,9 @@ for await (
 let buildId = getHashSync(
   JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
 );
-console.log(files.toSorted((a, b) => a.url.localeCompare(b.url)), buildId);
 const setBuildId = (id: string) => (buildId = id);
 
-const createIslandId = (key: string) => console.log(buildId, relative(import.meta.resolve("./"), key)) ??
+const createIslandId = (key: string) =>
   getHashSync(
     [buildId, relative(import.meta.resolve("./"), key)]
       .filter((v) => v)
@@ -312,29 +315,28 @@ const createIslands = async (
   console.time(id);
   const snapshotReader = buildSnapshot(bundle);
   console.timeEnd(id);
-  await Deno.remove(buildDir, { recursive: true }).catch(() => null);
-  await Deno.mkdir(buildDir, { recursive: true }).catch(() => null);
-  await Promise.all(
-    snapshotReader.getPaths().map(async (fileName) => {
-      const data = await snapshotReader.read(fileName);
-      if (data === null) return;
+  if (withWritePermission) {
+    await Deno.remove(buildDir, { recursive: true }).catch(() => null);
+    await Deno.mkdir(buildDir, { recursive: true }).catch(() => null);
+    await Promise.all(
+      snapshotReader.getPaths().map(async (fileName) => {
+        const data = await snapshotReader.read(fileName);
+        if (data === null) return;
 
-      const path = join(manifest.buildDir ?? "_islet", fileName);
-      console.log(path);
-      await Deno.mkdir(dirname(path), { recursive: true }).catch(() => null);
-      return Deno.writeFile(path, data);
-    }),
-  );
-  console.log(snapshotReader.json());
-
-  await Deno.writeTextFile(
-    snapshotPath,
-    JSON.stringify(
-      { build_id: buildId, files: snapshotReader.json() },
-      null,
-      2,
-    ),
-  );
+        const path = join(manifest.buildDir ?? "_islet", fileName);
+        await Deno.mkdir(dirname(path), { recursive: true }).catch(() => null);
+        return Deno.writeFile(path, data);
+      }),
+    );
+    await Deno.writeTextFile(
+      snapshotPath,
+      JSON.stringify(
+        { build_id: buildId, files: snapshotReader.json() },
+        null,
+        2,
+      ),
+    );
+  }
 
   return {
     get: (id: string) => snapshotReader.read(id),
@@ -349,18 +351,13 @@ export const createHandler = async (manifest: Manifest) => {
   const json: Snapshot | null = JSON.parse(
     await Deno.readTextFile(snapshotPath).catch(() => "null"),
   );
-  if (
-    json?.build_id &&
-    (await Deno.permissions.query({ name: "write", path: Deno.cwd() }))
-        .state === "denied"
-  ) {
+  if (json?.build_id && !withWritePermission) {
     setBuildId(json.build_id);
   }
 
   const snapshot = json?.build_id === buildId
     ? snapshotFromJson(json, buildDir)
     : null;
-  console.log(json, buildId, snapshot);
 
   if (!promiseCache.has(manifest.baseUrl.href)) {
     promiseCache.set(
