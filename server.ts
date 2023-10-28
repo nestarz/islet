@@ -48,7 +48,9 @@ const buildId = (() => {
 
 const createIslandId = (key: string) =>
   getHashSync(
-    [buildId.get(), relative(import.meta.resolve("./"), key)]
+console.log(    [buildId.get(), relative(import.meta.resolve("./"), key)]
+.filter((v) => v)
+.join("_")) ??    [buildId.get(), relative(import.meta.resolve("./"), key)]
       .filter((v) => v)
       .join("_"),
   );
