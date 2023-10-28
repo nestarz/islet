@@ -48,7 +48,12 @@ const buildId = (() => {
 
 const createIslandId = (key: string) =>
   getHashSync(
-    [buildId.get(), relative(Deno.cwd(), new URL(key).pathname)]
+    [
+      buildId.get(),
+      new URL(key).protocol === "file"
+        ? relative(Deno.cwd(), new URL(key).pathname)
+        : key,
+    ]
       .filter((v) => v)
       .join("_"),
   );
