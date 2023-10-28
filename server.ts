@@ -387,6 +387,14 @@ export const createHandler = async (manifest: Manifest) => {
     ? snapshotFromJson(json, buildDir)
     : null;
 
+  if (snapshot) {
+    console.log(`Using snapshot (${buildId.get()}) found at ${snapshotPath}`);
+  } else if (json && json.build_id !== buildId.get()) {
+    console.log(
+      `Snapshot (${json.build_id}) found but not up-to-date (${buildId.get()}). Rebuilding...`,
+    );
+  } else if (!json) console.log(`Snapshot not found.`);
+
   if (!promiseCache.has(manifest.baseUrl.href)) {
     promiseCache.set(
       manifest.baseUrl.href,
