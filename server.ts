@@ -48,9 +48,22 @@ const buildId = (() => {
 
 const createIslandId = (key: string) =>
   getHashSync(
-console.log(    [buildId.get(), relative(import.meta.resolve("./"), key)]
-.filter((v) => v)
-.join("_")) ??    [buildId.get(), relative(import.meta.resolve("./"), key)]
+    console.log(
+      key,
+      Deno.cwd(),
+      new URL(key).pathname,
+      relative(Deno.cwd(), new URL(key).pathname),
+      [
+        buildId.get(),
+        relative(Deno.cwd(), new URL(key).pathname).split("..").pop()!,
+      ]
+        // ../../../../file:/Users/elias/code/luckylab/microsite/src/components/Quiz.tsx
+        .filter((v) => v)
+        .join("_"),
+    ) ?? [
+      buildId.get(),
+      relative(Deno.cwd(), new URL(key).pathname).split("..").pop()!,
+    ]
       .filter((v) => v)
       .join("_"),
   );
