@@ -8,7 +8,10 @@ import {
   scripted,
   storeFunctionExecution,
 } from "https://deno.land/x/scripted@0.0.3/mod.ts";
-import { walk } from "https://deno.land/std@0.204.0/fs/walk.ts";
+import {
+  walk,
+  type WalkOptions,
+} from "https://deno.land/std@0.204.0/fs/walk.ts";
 import {
   dirname,
   join,
@@ -27,25 +30,20 @@ const withWritePermission =
   (await Deno.permissions.query({ name: "write", path: Deno.cwd() }))
     .state === "granted";
 
-const files = [];
-for await (
-  const { path } of walk(Deno.cwd(), {
-    maxDepth: 10,
-    exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
-  })
-) {
-  if (!path.includes("_islet") && !path.includes("islet")) {
-    files.push({ url: path, size: (await Deno.stat(path)).size });
-  }
-}
-let buildId = getHashSync(
-  JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
-);
-const setBuildId = (id: string) => (buildId = id);
+const buildId = (() => {
+  let buildId: string;
+  return ({
+    set: (id: string) => buildId = id,
+    get: () => {
+      if (!buildId) throw Error("Build ID not set");
+      return buildId;
+    },
+  });
+})();
 
 const createIslandId = (key: string) =>
   getHashSync(
-    [buildId, relative(import.meta.resolve("./"), key)]
+    [buildId.get(), relative(import.meta.resolve("./"), key)]
       .filter((v) => v)
       .join("_"),
   );
@@ -107,6 +105,7 @@ export interface Manifest {
   esbuildOptions?: Partial<Parameters<typeof esbuild.build>[0]>;
   openKv: () => ReturnType<typeof Deno.openKv>;
   dev?: boolean;
+  walkConfig?: Partial<WalkOptions>;
 }
 
 const esbuildState = ((
@@ -289,7 +288,7 @@ const createIslands = async (
       ),
     ],
     platform: "browser",
-    target: ["chrome99", "firefox99", "safari15"],
+    target: ["chrome109", "edge116", "firefox115", "ios15.6", "safari15.6"],
     format: "esm",
     jsx: manifest.jsxImportSource ? "automatic" : "transform",
     jsxFactory: "h",
@@ -331,7 +330,7 @@ const createIslands = async (
     await Deno.writeTextFile(
       snapshotPath,
       JSON.stringify(
-        { build_id: buildId, files: snapshotReader.json() },
+        { build_id: buildId.get(), files: snapshotReader.json() },
         null,
         2,
       ),
@@ -351,11 +350,30 @@ export const createHandler = async (manifest: Manifest) => {
   const json: Snapshot | null = JSON.parse(
     await Deno.readTextFile(snapshotPath).catch(() => "null"),
   );
-  if (json?.build_id && !withWritePermission) {
-    setBuildId(json.build_id);
+
+  const files = [];
+  for await (
+    const { path } of walk(Deno.cwd(), {
+      maxDepth: 10,
+      exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
+      ...manifest.walkConfig ?? {},
+    })
+  ) {
+    if (!relative(Deno.cwd(), path).startsWith(buildDir)) {
+      const fileInfo = await Deno.stat(path);
+      files.push({ url: path, size: fileInfo.size, mtime: fileInfo.mtime });
+    }
   }
 
-  const snapshot = json?.build_id === buildId
+  if (json?.build_id && !withWritePermission) {
+    buildId.set(json.build_id);
+  } else {
+    buildId.set(getHashSync(
+      JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
+    ));
+  }
+
+  const snapshot = json?.build_id === buildId.get()
     ? snapshotFromJson(json, buildDir)
     : null;
 
