@@ -18,6 +18,8 @@ import {
   relative,
   toFileUrl,
 } from "https://deno.land/std@0.204.0/path/mod.ts";
+import { crypto } from "https://deno.land/std@0.204.0/crypto/mod.ts";
+import { encodeBase64 } from "https://deno.land/std@0.204.0/encoding/base64.ts";
 
 import { getIslands, IslandDef } from "./client.ts";
 
@@ -33,7 +35,10 @@ const withWritePermission =
 const buildId = (() => {
   let buildId: string;
   return ({
-    set: (id: string) => buildId = id,
+    set: (id: string) => {
+      buildId = id;
+      console.log("[set-build]", id);
+    },
     get: () => {
       if (!buildId) throw Error("Build ID not set");
       return buildId;
@@ -351,23 +356,23 @@ export const createHandler = async (manifest: Manifest) => {
     await Deno.readTextFile(snapshotPath).catch(() => "null"),
   );
 
-  const files = [];
-  for await (
-    const { path } of walk(Deno.cwd(), {
-      maxDepth: 10,
-      exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
-      ...manifest.walkConfig ?? {},
-    })
-  ) {
-    if (!relative(Deno.cwd(), path).startsWith(buildDir)) {
-      const fileInfo = await Deno.stat(path);
-      files.push({ url: path, size: fileInfo.size, mtime: fileInfo.mtime });
-    }
-  }
-
   if (json?.build_id && !withWritePermission) {
     buildId.set(json.build_id);
   } else {
+    const files = [];
+    for await (
+      const { path } of walk(Deno.cwd(), {
+        maxDepth: 10,
+        exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
+        ...manifest.walkConfig ?? {},
+      })
+    ) {
+      if (!relative(Deno.cwd(), path).startsWith(buildDir)) {
+        const file = await Deno.open(path);
+        const hash = await crypto.subtle.digest("MD5", file.readable);
+        files.push({ url: path, hash: encodeBase64(hash) });
+      }
+    }
     buildId.set(getHashSync(
       JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
     ));
