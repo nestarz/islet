@@ -62,7 +62,7 @@ const createIslandId = (key: string) =>
         .join("_"),
     ) ?? [
       buildId.get(),
-      relative(Deno.cwd(), new URL(key).pathname).split("..").pop()!,
+      relative(Deno.cwd(), new URL(key).pathname),
     ]
       .filter((v) => v)
       .join("_"),
