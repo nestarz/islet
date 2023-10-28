@@ -52,7 +52,7 @@ const createIslandId = (key: string) =>
       buildId.get(),
       new URL(key).protocol === "file"
         ? relative(Deno.cwd(), new URL(key).pathname)
-        : key,
+        : console.log(Deno.cwd(), key) ?? key,
     ]
       .filter((v) => v)
       .join("_"),
