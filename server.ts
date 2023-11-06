@@ -429,7 +429,9 @@ export const createHandler = async (manifest: Manifest) => {
       ? new Response(contents, {
         headers: {
           "content-type": "text/javascript",
-          "Cache-Control": "public, max-age=31536000, immutable",
+          "Cache-Control": withWritePermission
+            ? "no-cache, no-store, must-revalidate"
+            : "public, max-age=31536000, immutable",
         },
       })
       : new Response(null, { status: 404 });
