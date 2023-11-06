@@ -270,6 +270,8 @@ interface IslandHandlerGetter {
   get: (id: string) => ReturnType<SnapshotReader["read"]>;
 }
 
+export const hmrNewIsletSnapshotEventName = "islethmrsnapshotcreated";
+
 const createIslands = async (
   manifest: Manifest,
   initSnapshot: SnapshotReader | null,
@@ -359,6 +361,9 @@ const createIslands = async (
     globalThis.addEventListener("hmr", async (e) => {
       snapshotReader = await createSnapshotReader();
       console.log("[esbuild] HMR triggered", e.detail.path);
+      globalThis.dispatchEvent(
+        new CustomEvent(hmrNewIsletSnapshotEventName, { detail: e.detail }),
+      );
     });
   } else context.dispose();
 
