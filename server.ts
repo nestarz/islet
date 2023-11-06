@@ -316,36 +316,51 @@ const createIslands = async (
     ...(manifest.esbuildOptions ?? {}),
   };
 
-  const bundle = await esbuildState
+  const context = await esbuildState
     .init()
-    .then(() => esbuild.build(buildConfig));
-  const buildDir = dirname(snapshotPath);
-  const id = `[esbuild-${buildCounter()}] build`;
-  console.time(id);
-  const snapshotReader = buildSnapshot(bundle);
-  console.timeEnd(id);
-  if (withWritePermission) {
-    await Deno.remove(buildDir, { recursive: true }).catch(() => null);
-    await Deno.mkdir(buildDir, { recursive: true }).catch(() => null);
-    await Promise.all(
-      snapshotReader.getPaths().map(async (fileName) => {
-        const data = await snapshotReader.read(fileName);
-        if (data === null) return;
+    .then(() => esbuild.context(buildConfig));
 
-        const path = join(manifest.buildDir ?? "_islet", fileName);
-        await Deno.mkdir(dirname(path), { recursive: true }).catch(() => null);
-        return Deno.writeFile(path, data);
-      }),
-    );
-    await Deno.writeTextFile(
-      snapshotPath,
-      JSON.stringify(
-        { build_id: buildId.get(), files: snapshotReader.json() },
-        null,
-        2,
-      ),
-    );
-  }
+  const createSnapshotReader = async () => {
+    const id = `[esbuild-${buildCounter()}] build`;
+    console.time(id);
+    const bundle = await context.rebuild();
+    console.timeEnd(id);
+    const buildDir = dirname(snapshotPath);
+    const snapshotReader = buildSnapshot(bundle);
+    if (withWritePermission) {
+      await Deno.remove(buildDir, { recursive: true }).catch(() => null);
+      await Deno.mkdir(buildDir, { recursive: true }).catch(() => null);
+      await Promise.all(
+        snapshotReader.getPaths().map(async (fileName) => {
+          const data = await snapshotReader.read(fileName);
+          if (data === null) return;
+
+          const path = join(manifest.buildDir ?? "_islet", fileName);
+          await Deno.mkdir(dirname(path), { recursive: true }).catch(() =>
+            null
+          );
+          return Deno.writeFile(path, data);
+        }),
+      );
+      await Deno.writeTextFile(
+        snapshotPath,
+        JSON.stringify(
+          { build_id: buildId.get(), files: snapshotReader.json() },
+          null,
+          2,
+        ),
+      );
+    }
+    return snapshotReader;
+  };
+
+  let snapshotReader = await createSnapshotReader();
+  if (withWritePermission) {
+    globalThis.addEventListener("hmr", async (e) => {
+      snapshotReader = await createSnapshotReader();
+      console.log("[esbuild] HMR triggered", e.detail.path);
+    });
+  } else context.dispose();
 
   return {
     get: (id: string) => snapshotReader.read(id),
