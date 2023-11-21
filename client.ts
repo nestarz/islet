@@ -1,4 +1,4 @@
-import type { ComponentType } from "preact";
+import type { ComponentType } from "https://esm.sh/preact@10.19.2";
 export type IslandDef = { url: string; exportName: string };
 const islands: Map<
   string,
