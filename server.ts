@@ -113,7 +113,6 @@ export interface Manifest {
   buildDir?: string;
   importMapFileName?: string;
   esbuildOptions?: Partial<Parameters<typeof esbuild.build>[0]>;
-  openKv: () => ReturnType<typeof Deno.openKv>;
   dev?: boolean;
   walkConfig?: Partial<WalkOptions>;
 }
