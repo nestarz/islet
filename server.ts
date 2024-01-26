@@ -1,7 +1,7 @@
 /// <reference lib="deno.unstable" />
 
-import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.2/mod.ts";
-import * as esbuild from "https://deno.land/x/esbuild@v0.19.4/wasm.js";
+import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.5/mod.ts";
+import * as esbuild from "https://deno.land/x/esbuild@v0.19.12/wasm.js";
 import {
   collectAndCleanScripts,
   getHashSync,
@@ -11,15 +11,15 @@ import {
 import {
   walk,
   type WalkOptions,
-} from "https://deno.land/std@0.204.0/fs/walk.ts";
+} from "https://deno.land/std@0.213.0/fs/walk.ts";
 import {
   dirname,
   join,
   relative,
   toFileUrl,
-} from "https://deno.land/std@0.204.0/path/mod.ts";
-import { crypto } from "https://deno.land/std@0.204.0/crypto/mod.ts";
-import { encodeBase64 } from "https://deno.land/std@0.204.0/encoding/base64.ts";
+} from "https://deno.land/std@0.213.0/path/mod.ts";
+import { crypto } from "https://deno.land/std@0.213.0/crypto/mod.ts";
+import { encodeBase64 } from "https://deno.land/std@0.213.0/encoding/base64.ts";
 
 import { getIslands, IslandDef } from "./client.ts";
 
@@ -29,12 +29,12 @@ interface Snapshot {
 }
 
 const withWritePermission =
-  (await Deno.permissions.query({ name: "write", path: Deno.cwd() }))
-    .state === "granted";
+  (await Deno.permissions.query({ name: "write", path: Deno.cwd() })).state ===
+    "granted";
 
 const buildId = (() => {
   let buildId: string;
-  return ({
+  return {
     set: (id: string) => {
       buildId = id;
       console.log("[set-build]", id);
@@ -43,7 +43,7 @@ const buildId = (() => {
       if (!buildId) throw Error("Build ID not set");
       return buildId;
     },
-  });
+  };
 })();
 
 const createIslandId = (key: string) =>
@@ -58,7 +58,7 @@ const createIslandId = (key: string) =>
       .join("_"),
   );
 
-export const getIslandUrl = <T>(fn: T, key = "default") =>
+export const getIslandUrl = <T,>(fn: T, key = "default") =>
   `/islands/${createIslandId(getIslands(key).get(fn)?.url!)}.js`;
 
 export const config = {
@@ -157,9 +157,7 @@ interface SnapshotReader {
   };
 }
 
-const buildSnapshot = (
-  bundle: EsBuild,
-): SnapshotReader => {
+const buildSnapshot = (bundle: EsBuild): SnapshotReader => {
   const files = new Map<string, Uint8Array>();
   const dependencies = new Map<string, string[]>();
   for (const file of bundle.outputFiles!) {
@@ -337,8 +335,8 @@ const createIslands = async (
           if (data === null) return;
 
           const path = join(manifest.buildDir ?? "_islet", fileName);
-          await Deno.mkdir(dirname(path), { recursive: true }).catch(() =>
-            null
+          await Deno.mkdir(dirname(path), { recursive: true }).catch(
+            () => null,
           );
           return Deno.writeFile(path, data);
         }),
@@ -388,7 +386,7 @@ export const createHandler = async (manifest: Manifest) => {
       const { path } of walk(Deno.cwd(), {
         maxDepth: 10,
         exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
-        ...manifest.walkConfig ?? {},
+        ...(manifest.walkConfig ?? {}),
       })
     ) {
       if (!relative(Deno.cwd(), path).startsWith(buildDir)) {
@@ -397,9 +395,11 @@ export const createHandler = async (manifest: Manifest) => {
         files.push({ url: path, hash: encodeBase64(hash) });
       }
     }
-    buildId.set(getHashSync(
-      JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
-    ));
+    buildId.set(
+      getHashSync(
+        JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
+      ),
+    );
   }
 
   const snapshot = json?.build_id === buildId.get()
@@ -613,10 +613,13 @@ export const createJsx = ({
   const className = island ? createIslandScript(prefix, island) : null;
   const children = h(type, params, key, ...props);
   const result = h(island ? "fragment" : Fragment, {
-    style: { display: "contents" },
-    className,
     ...(island
-      ? { "data-islet-type": "island", "data-islet-id": isletId }
+      ? {
+        "data-islet-type": "island",
+        "data-islet-id": isletId,
+        style: { display: "contents" },
+        className,
+      }
       : {}),
     children: !island ? children : cloneElement(children, {
       children: children.props.children
