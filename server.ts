@@ -317,7 +317,7 @@ const createIslands = async (
     absWorkingDir,
     write: false,
     sourcemap: manifest.dev ? "linked" : false,
-    minify: true,
+    minify: !manifest.dev,
     define: {
       ...(manifest.dev ? { "process.env.NODE_ENV": '"development"' } : {}),
       ...manifest.esbuildOptions?.define,
