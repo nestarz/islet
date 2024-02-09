@@ -292,6 +292,7 @@ const createIslands = async (
           manifest.baseUrl,
         ).href,
       }),
+      ...(manifest.esbuildOptions?.plugins ?? []),
     ],
     entryPoints: [
       ...Array.from(getIslands(manifest.namespace ?? "default").data).map(
@@ -318,7 +319,8 @@ const createIslands = async (
     sourcemap: manifest.dev ? "linked" : false,
     minify: true,
     define: {
-      "process.env.NODE_ENV": '"development"',
+      ...(manifest.dev ? { "process.env.NODE_ENV": '"development"' } : {}),
+      ...manifest.esbuildOptions?.define,
     },
     ...(manifest.esbuildOptions ?? {}),
   };
