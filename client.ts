@@ -1,20 +1,45 @@
-import type { ComponentType } from "https://esm.sh/preact@10.19.3";
-export type IslandDef = { url: string; exportName: string };
-const islands: Map<
-  string,
-  Map<ComponentType<{ className: string }>, IslandDef>
-> = new Map();
-export const getIslands = (key: string) => {
-  if (!islands.has(key)) islands.set(key, new Map());
-  return islands.get(key)!;
+export type IslandDef = {
+  url: string;
+  exportName: string;
+  namespace?: "default" | string;
+  islands: {
+    loading: boolean;
+    data: Map<any, IslandDef>;
+    parentPathSegment?: string | undefined;
+  };
 };
-export default function island<T>(
-  fn: ComponentType<{ className?: string } & T>,
-  url: IslandDef["url"],
-  exportName: IslandDef["exportName"] = "default",
-  key = "default"
-) {
-  if (!islands.has(key)) islands.set(key, new Map());
-  islands.get(key)?.set(fn, { url, exportName, key });
-  return fn;
+
+const islands: Map<string, IslandDef["islands"]> = new Map();
+
+export const getIslands = (namespace: string) => {
+  if (!islands.has(namespace)) {
+    islands.set(namespace, { loading: true, data: new Map() });
+  }
+  return islands.get(namespace)!;
+};
+
+export const getAllIslands = () =>
+  Array.from(islands.values()).reduce((combined, map) => {
+    return new Map([...combined, ...map.data]);
+  }, new Map());
+
+export default function island(url: IslandDef["url"], namespace = "default") {
+  if (globalThis.document) return null;
+
+  if (!islands.has(namespace)) {
+    islands.set(namespace, { loading: true, data: new Map() });
+  }
+  (async () => {
+    const module = await import(url);
+    Object.entries(module).map(([exportName, value]) => {
+      islands.get(namespace)?.data.set(value, {
+        url,
+        exportName,
+        namespace,
+        islands: islands.get(namespace)!,
+      });
+    });
+  })()
+    .catch(console.error)
+    .finally(() => (islands.get(namespace)!.loading = false));
 }

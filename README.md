@@ -2,6 +2,7 @@
 
 Islet is a modern JavaScript library that introduces an architecture for creating fast, scalable, interactive web applications leveraging the Islands Architecture principles. It allows you to create fluent and smooth UI experiences, without being attached to a specific UI library. It's designed to work seamlessly with JSX and supports preact and react for rendering components.
 
+
 ## Main Features
 
 - Implements "Islands Architecture" for creating highly interactive sections of your application
