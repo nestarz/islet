@@ -1,0 +1,41 @@
+{
+  "name": "@bureaudouble/islet",
+  "version": "0.0.12",
+  "lint": {
+    "rules": {
+      "tags": ["fresh", "recommended"]
+    }
+  },
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "dom.asynciterable", "deno.ns"]
+  },
+  "exclude": [
+    ".*",
+    "test/",
+    "**/*.env*",
+    "**/.env",
+    "**/.env*",
+    "**/.DS_Store"
+  ],
+  "exports": {
+    "./react/jsx-runtime": "./src/react/jsx-runtime.ts",
+    "./client": "./client.ts",
+    "./server": "./server.ts"
+  },
+  "imports": {
+    "react": "npm:react@18.2",
+    "react/": "npm:/react@18.2/",
+    "preact/": "npm:/preact@10.19/",
+    "preact": "npm:preact@10.19",
+    "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@0.9",
+    "@bureaudouble/outils/": "jsr:/@bureaudouble/outils@0.0.13/",
+    "@bureaudouble/scripted": "jsr:@bureaudouble/scripted@0.0.2",
+    "@std/fs/": "jsr:/@std/fs@0.216/",
+    "@std/path/": "jsr:/@std/path@0.216/",
+    "@std/crypto/": "jsr:/@std/crypto@0.216/",
+    "@std/encoding/": "jsr:/@std/encoding@0.216/",
+    "types/esbuild": "npm:esbuild@0.20.1",
+    "esbuild-wasm": "./vendor/deno.land/x/esbuild@v0.20.1/wasm.js",
+    "esbuild": "./vendor/deno.land/x/esbuild@v0.20.1/mod.js"
+  }
+}

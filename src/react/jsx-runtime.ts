@@ -1,7 +1,12 @@
-export * from "react/jsx-runtime";
-import { jsx as _jsx } from "react/jsx-runtime";
-import { cloneElement, Fragment } from "react";
-import { createJsx } from "../../server.ts";
+import * as JSX from "npm:@types/react@18.2/jsx-runtime";
 
-export const jsx = createJsx({ cloneElement, h: _jsx, Fragment });
-export const jsxs = jsx;
+import { cloneElement, Fragment } from "react";
+import { createJsx } from "./../../server.ts";
+
+export const jsx: (type: any, params: any, key: any, ...props: any[]) => any =
+  createJsx({ cloneElement, h: (JSX as any).jsx, Fragment });
+
+export const jsxs: (type: any, params: any, key: any, ...props: any[]) => any =
+  jsx;
+
+export { Fragment };
