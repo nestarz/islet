@@ -20,7 +20,7 @@ interface Snapshot {
 
 const withWritePermission: boolean =
   (await Deno.permissions.query({ name: "write", path: Deno.cwd() })).state ===
-  "granted";
+    "granted";
 
 import * as esbuildMod from "esbuild";
 import * as esbuildWasm from "esbuild-wasm";
@@ -58,7 +58,7 @@ const createIslandId = (key: string): string =>
         : key,
     ]
       .filter((v) => v)
-      .join("_")
+      .join("_"),
   );
 
 export const getIslandUrl = <T>(fn: T, namespace = "default"): string =>
@@ -66,7 +66,7 @@ export const getIslandUrl = <T>(fn: T, namespace = "default"): string =>
 
 function deepApply<T extends Record<string, unknown>>(
   data: T,
-  applyFn: (key: string, value: unknown, obj: Record<string, unknown>) => any
+  applyFn: (key: string, value: unknown, obj: Record<string, unknown>) => any,
 ): T {
   function isObject(object: unknown): object is Record<keyof never, unknown> {
     return object instanceof Object && object.constructor === Object;
@@ -81,7 +81,7 @@ function deepApply<T extends Record<string, unknown>>(
       const r = applyFn(key, value, p);
       return r;
     },
-    data
+    data,
   );
   const clean = Object.entries(entries).map(([key, v]) => {
     const value = isObject(v) ? deepApply(v, applyFn) : v;
@@ -124,21 +124,20 @@ const getEsbuildState: () => {
   isInitialized: () => boolean;
   init: () => Promise<void | null>;
 } = (
-  (done = false, ongoingPromise: null | Promise<null | void> = null) =>
-  () => ({
+  (done = false, ongoingPromise: null | Promise<null | void> = null) => () => ({
     isInitialized: () => done,
     init: () => {
       if (ongoingPromise) return ongoingPromise;
       const id = initCounter();
       console.time(`[init-${id}] ${getEsbuild().version}`);
       const wasmURL = import.meta.resolve(
-        `./vendor/deno.land/x/esbuild@v${getEsbuild().version}/esbuild.wasm`
+        `./vendor/deno.land/x/esbuild@v${getEsbuild().version}/esbuild.wasm`,
       );
       ongoingPromise = getEsbuild()
         .initialize(
           !globalThis.Worker || Deno.Command === undefined
             ? { wasmURL, worker: false }
-            : {}
+            : {},
         )
         .then(() => {
           done = true;
@@ -168,7 +167,7 @@ const buildSnapshot = (bundle: Esbuild.BuildResult): SnapshotReader => {
   for (const file of bundle.outputFiles!) {
     files.set(
       relative(Deno.cwd(), toFileUrl(file.path).pathname).split("..").pop()!,
-      file.contents
+      file.contents,
     );
   }
 
@@ -187,24 +186,24 @@ const buildSnapshot = (bundle: Esbuild.BuildResult): SnapshotReader => {
       Promise.resolve(
         files.get(path)
           ? new ReadableStream({
-              start(controller) {
-                controller.enqueue(files.get(path)!);
-                controller.close();
-              },
-            })
-          : null
+            start(controller) {
+              controller.enqueue(files.get(path)!);
+              controller.close();
+            },
+          })
+          : null,
       ),
     dependencies: (path: string) => dependencies.get(path) ?? [],
     json: () =>
       Object.fromEntries(
-        Array.from(files.keys()).map((key) => [key, dependencies.get(key)])
+        Array.from(files.keys()).map((key) => [key, dependencies.get(key)]),
       ),
   };
 };
 
 const snapshotFromJson = (
   json: Snapshot,
-  snapshotDirPath: string
+  snapshotDirPath: string,
 ): SnapshotReader => {
   const dependencies = new Map<string, string[]>(Object.entries(json.files));
 
@@ -235,7 +234,7 @@ const snapshotFromJson = (
     dependencies: (path: string) => dependencies.get(path) ?? [],
     json: () =>
       Object.fromEntries(
-        Array.from(files.keys()).map((key) => [key, dependencies.get(key)])
+        Array.from(files.keys()).map((key) => [key, dependencies.get(key)]),
       ),
   };
 };
@@ -252,7 +251,7 @@ const transformScript = async (script: string): Promise<string> => {
 
 export const addScripts = async (
   html: string | ReadableStream,
-  minify = true
+  minify = true,
 ): Promise<typeof html> => {
   const scripts = collectAndCleanScripts();
   const code = minify ? await transformScript(scripts) : scripts;
@@ -260,10 +259,12 @@ export const addScripts = async (
   if (html instanceof ReadableStream) {
     return html.pipeThrough(new SuffixTransformStream(script));
   }
-  return `${html.replace(
-    html.includes("</body>") ? /(<\/body>)/ : /(.*)/,
-    (_, $1) => `${script}${$1}`
-  )}`;
+  return `${
+    html.replace(
+      html.includes("</body>") ? /(<\/body>)/ : /(.*)/,
+      (_, $1) => `${script}${$1}`,
+    )
+  }`;
 };
 
 interface IslandHandlerGetter {
@@ -272,10 +273,23 @@ interface IslandHandlerGetter {
 
 export const hmrNewIsletSnapshotEventName = "islethmrsnapshotcreated";
 
+function transformUrlToJsrSpecifier(url: string): string {
+  const regex = /https:\/\/jsr\.io\/(@[^/]+\/[^/]+)\/([^/]+)(.*)/;
+  const matches = url.match(regex);
+  if (!matches) return url;
+  const res = `jsr:${matches[1]}@${matches[2]}${matches[3]}`;
+  console.warn(
+    "warn: Importing a JSR package via an HTTPS URL is not implemented. Trying to convert into a JSR specifier.",
+    url,
+    res,
+  );
+  return res;
+}
+
 const createIslands = async (
   manifest: Manifest,
   initSnapshot: SnapshotReader | null,
-  snapshotPath: string
+  snapshotPath: string,
 ): Promise<IslandHandlerGetter> => {
   if (initSnapshot) {
     return { get: (id: string) => initSnapshot.read(id) };
@@ -287,7 +301,7 @@ const createIslands = async (
       ...denoPlugins({
         importMapURL: new URL(
           manifest.importMapFileName ?? "deno.json",
-          manifest.baseUrl
+          manifest.baseUrl,
         ).href,
       }),
       ...(manifest.esbuildOptions?.plugins ?? []),
@@ -296,8 +310,8 @@ const createIslands = async (
       ...Array.from(getIslands(manifest.namespace ?? "default").data).map(
         ([, island]) => ({
           out: createIslandId(island.url),
-          in: island.url,
-        })
+          in: transformUrlToJsrSpecifier(island.url),
+        }),
       ),
     ],
     platform: "browser",
@@ -342,21 +356,21 @@ const createIslands = async (
           const data = await snapshotReader.read(fileName);
           if (data === null) return;
 
-          const path = join(manifest.buildDir ?? "_islet", fileName);
+          const path = join(manifest.buildDir ?? ".build", "islet", fileName);
           await Deno.mkdir(dirname(path), { recursive: true }).catch(
-            () => null
+            () => null,
           );
 
           return Deno.writeFile(path, data);
-        })
+        }),
       );
       await Deno.writeTextFile(
         snapshotPath,
         JSON.stringify(
           { build_id: getBuildId().get(), files: snapshotReader.json() },
           null,
-          2
-        )
+          2,
+        ),
       );
     }
     return snapshotReader;
@@ -371,9 +385,9 @@ const createIslands = async (
         snapshotReader = await createSnapshotReader();
         console.log("[esbuild] HMR triggered", e.detail.path);
         globalThis.dispatchEvent(
-          new CustomEvent(hmrNewIsletSnapshotEventName, { detail: e.detail })
+          new CustomEvent(hmrNewIsletSnapshotEventName, { detail: e.detail }),
         );
-      }
+      },
     );
   } else context.dispose();
 
@@ -388,24 +402,28 @@ type Renderer = {
   withFragment?: boolean;
 };
 
-export const createIsletPlugin = async (manifest: Manifest): Promise<Plugin> => {
+export const createIsletPlugin = async (
+  manifest: Manifest,
+): Promise<Plugin> => {
   const promiseCache: Map<string, Promise<IslandHandlerGetter>> = new Map();
 
-  const buildDir = manifest.buildDir ?? "_islet";
+  const buildDir = join(manifest.buildDir ?? ".build", "islet");
   const snapshotPath = join(buildDir, manifest.prefix ?? "", "snapshot.json");
   const json: Snapshot | null = JSON.parse(
-    await Deno.readTextFile(snapshotPath).catch(() => "null")
+    await Deno.readTextFile(snapshotPath).catch(() => "null"),
   );
 
   if (json?.build_id && !withWritePermission) {
     getBuildId().set(json.build_id);
   } else {
     const files = [];
-    for await (const { path } of walk(Deno.cwd(), {
-      maxDepth: 10,
-      exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
-      ...(manifest.walkConfig ?? {}),
-    })) {
+    for await (
+      const { path } of walk(Deno.cwd(), {
+        maxDepth: 10,
+        exts: [".js", ".jsx", ".tsx", ".ts", ".json", ".jsonc"],
+        ...(manifest.walkConfig ?? {}),
+      })
+    ) {
       if (!relative(Deno.cwd(), path).startsWith(buildDir)) {
         const file = await Deno.open(path);
         const hash = await crypto.subtle.digest("MD5", file.readable);
@@ -414,32 +432,29 @@ export const createIsletPlugin = async (manifest: Manifest): Promise<Plugin> => 
     }
     getBuildId().set(
       getHashSync(
-        JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url)))
-      )
+        JSON.stringify(files.toSorted((a, b) => a.url.localeCompare(b.url))),
+      ),
     );
   }
 
-  const snapshot =
-    json?.build_id === getBuildId().get()
-      ? snapshotFromJson(json, buildDir)
-      : null;
+  const snapshot = json?.build_id === getBuildId().get()
+    ? snapshotFromJson(json, buildDir)
+    : null;
 
   if (snapshot) {
     console.log(
-      `Using snapshot (${getBuildId().get()}) found at ${snapshotPath}`
+      `Using snapshot (${getBuildId().get()}) found at ${snapshotPath}`,
     );
   } else if (json && json.build_id !== getBuildId().get()) {
     console.log(
-      `Snapshot (${
-        json.build_id
-      }) found but not up-to-date (${getBuildId().get()}). Rebuilding...`
+      `Snapshot (${json.build_id}) found but not up-to-date (${getBuildId().get()}). Rebuilding...`,
     );
   } else if (!json) console.log(`Snapshot not found.`);
 
   if (!promiseCache.has(manifest.baseUrl.href)) {
     promiseCache.set(
       manifest.baseUrl.href,
-      createIslands(manifest, snapshot, snapshotPath)
+      createIslands(manifest, snapshot, snapshotPath),
     );
   }
   const islands = await promiseCache.get(manifest.baseUrl.href)!;
@@ -451,17 +466,17 @@ export const createIsletPlugin = async (manifest: Manifest): Promise<Plugin> => 
         path: "/islands/:id*",
         handler: async (_req, ctx) => {
           const contents = await islands.get(
-            join(manifest.prefix, ctx.params.id)
+            join(manifest.prefix, ctx.params.id),
           );
           return contents
             ? new Response(contents, {
-                headers: {
-                  "content-type": "text/javascript",
-                  "Cache-Control": withWritePermission
-                    ? "no-cache, no-store, must-revalidate"
-                    : "public, max-age=31536000, immutable",
-                },
-              })
+              headers: {
+                "content-type": "text/javascript",
+                "Cache-Control": withWritePermission
+                  ? "no-cache, no-store, must-revalidate"
+                  : "public, max-age=31536000, immutable",
+              },
+            })
             : new Response(null, { status: 404 });
         },
       },
@@ -474,13 +489,13 @@ type DomElement = any;
 
 type HydrateFn = (
   container: DomElement | DomDocument,
-  initialChildren: Record<string | number | symbol, never>
+  initialChildren: Record<string | number | symbol, never>,
 ) => Record<string | number | symbol, never>;
 
 const hydrate = (
   node: DomElement,
   specifier: string,
-  exportName: string
+  exportName: string,
 ): void => {
   const closest = node.parentElement?.closest("[data-islet-type=island]");
   if (closest) {
@@ -496,35 +511,36 @@ const hydrate = (
           ...acc,
           [key.replace(/-./g, (x) => x[1].toUpperCase())]: value,
         }),
-        {}
+        {},
       );
 
   const processAttributes = (
-    attributes: NamedNodeMap
+    attributes: NamedNodeMap,
   ): Record<string, unknown> =>
     Array.from(attributes).reduce(
       (acc, { name, value }) => {
-        (acc as any)[name === "class" ? "className" : name] =
-          name === "style" ? parseStyleStr(value) : value;
+        (acc as any)[name === "class" ? "className" : name] = name === "style"
+          ? parseStyleStr(value)
+          : value;
         return acc;
       },
-      { key: Math.random() }
+      { key: Math.random() },
     );
 
   const getType = async (node: DomElement) =>
     node.dataset?.isletType === "island"
       ? await import((window as any)._ISLET[node.dataset.isletId].url).then(
-          (module) =>
-            module[
-              (window as any)._ISLET[node.dataset.isletId].exportName ??
-                "default"
-            ]
-        )
+        (module) =>
+          module[
+            (window as any)._ISLET[node.dataset.isletId].exportName ??
+              "default"
+          ],
+      )
       : null;
 
   const toVirtual = async (
     h: Function,
-    node: Element | ChildNode | HTMLElement | null
+    node: Element | ChildNode | HTMLElement | null,
   ): Promise<any> => {
     if (node?.nodeType === 8) return null;
     if (node?.nodeType !== 1) return node?.textContent;
@@ -532,12 +548,11 @@ const hydrate = (
     const element: HTMLElement = node as HTMLElement;
     const tagName = element.tagName?.toLowerCase();
     const attributes = processAttributes(element.attributes ?? {});
-    const children =
-      element.childNodes.length > 0
-        ? await Promise.all(
-            [...element.childNodes].map((child) => toVirtual(h, child))
-          )
-        : null;
+    const children = element.childNodes.length > 0
+      ? await Promise.all(
+        [...element.childNodes].map((child) => toVirtual(h, child)),
+      )
+      : null;
 
     const type = await getType(element);
     if (!type) {
@@ -546,11 +561,11 @@ const hydrate = (
         : h(tagName, attributes, children);
     }
     const islandProps = JSON.parse(
-      (window as any)._ISLET[element.dataset.isletId!].props
+      (window as any)._ISLET[element.dataset.isletId!].props,
     );
     islandProps.children = await toVirtual(
       h,
-      element.querySelector("[data-islet-type]")
+      element.querySelector("[data-islet-type]"),
     );
     islandProps.key = Math.random();
     return h(type, islandProps);
@@ -561,7 +576,7 @@ const hydrate = (
 
   const transformStaticNodeToVirtual = async (
     h: any,
-    props: any
+    props: any,
   ): Promise<{ [k: string]: any }> =>
     Object.fromEntries(
       await mapAsync(Object.entries(props ?? {}), async ([k, v]: any[]) => {
@@ -574,7 +589,7 @@ const hydrate = (
         } else if (v?.__islet && v?.type) {
           return [k, h(v.type, await transformStaticNodeToVirtual(h, v.props))];
         } else return [k, v];
-      })
+      }),
     );
 
   const renderTask = async () => {
@@ -591,10 +606,10 @@ const hydrate = (
           h,
           node.querySelector("[data-islet-type]")?.dataset.isletType === "slot"
             ? node.querySelector("[data-islet-type]")
-            : null
+            : null,
         );
         const props = JSON.parse(
-          (window as any)._ISLET[node.dataset.isletId].props
+          (window as any)._ISLET[node.dataset.isletId].props,
         );
         props.children = children;
         const resolvedProps = await transformStaticNodeToVirtual(h, props);
@@ -604,7 +619,7 @@ const hydrate = (
             node.replaceWith(...node.childNodes);
           });
         hydrate(h(type, resolvedProps), container);
-      }
+      },
     );
   };
 
@@ -623,23 +638,22 @@ const createIslandScript = ({
   return scripted(
     hydrate,
     `${islands.parentPathSegment ?? ""}/islands/${id}.js`,
-    exportName
+    exportName,
   );
 };
 
 const transformVirtualNodeToStatic = (
   params: any,
-  islands: Map<any, any>
+  islands: Map<any, any>,
 ): any => {
   const newParams = deepApply(
     params,
     (key: string, value: any, obj: Record<string, unknown>) => {
-      const component =
-        key === "type" &&
-        islands.get((value as any)?.type ?? value) &&
-        typeof value === "function"
-          ? islands.get((value as any)?.type ?? value)
-          : null;
+      const component = key === "type" &&
+          islands.get((value as any)?.type ?? value) &&
+          typeof value === "function"
+        ? islands.get((value as any)?.type ?? value)
+        : null;
       if (component) {
         const id = createIslandId(component.url);
         return {
@@ -651,97 +665,93 @@ const transformVirtualNodeToStatic = (
         };
       }
       return key.startsWith("__") ? { ...obj, [key]: undefined } : obj;
-    }
+    },
   );
   return newParams;
 };
 
 const jsonStringifyWithBigIntSupport = (data: unknown): string | undefined => {
   if (data !== undefined) {
-    return JSON.stringify(data, (_, v) =>
-      typeof v === "bigint" ? `${v}#bigint` : v
+    return JSON.stringify(
+      data,
+      (_, v) => typeof v === "bigint" ? `${v}#bigint` : v,
     ).replace(/"(-?\d+)#bigint"/g, (_, a) => a);
   }
 };
 
 export const setNamespaceParentPathSegment = (
   namespace: string,
-  parentPathSegment: string
+  parentPathSegment: string,
 ) => {
   const islands = getIslands(namespace);
   islands.parentPathSegment = parentPathSegment;
 };
 
 // jsx is instancied BY FILE
-export const createJsx =
-  ({
-    h,
-    Fragment,
-    cloneElement,
-  }: {
-    // deno-lint-ignore ban-types
-    h: Function;
-    // deno-lint-ignore ban-types
-    Fragment: Function;
-    // deno-lint-ignore ban-types
-    cloneElement: Function;
-  }) =>
-  (type: any, params: any, key: any, ...props: any[]): any => {
-    const islands = getAllIslands();
-    const island = islands.get(type);
-    const isletData = !island
-      ? null
-      : {
-          url: `${
-            island.islands.parentPathSegment ?? ""
-          }/islands/${createIslandId(island.url)}.js`,
-          exportName: island.exportName,
-          props: jsonStringifyWithBigIntSupport({
-            ...transformVirtualNodeToStatic(params, islands),
-            children: undefined,
-          }),
-        };
-    const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
-    if (island) {
-      storeFunctionExecution((isletId: string, isletData: unknown) => {
-        (window as any)._ISLET = Object.assign(
-          { [isletId]: isletData },
-          (window as any)._ISLET || {}
-        );
-      }, ...[isletId, isletData]);
-    }
-    const className = island ? createIslandScript(island) : null;
-    const children = h(type, params, key, ...props);
-    const result = h(
-      island ? "fragment" : Fragment,
-      {
-        ...(island
-          ? {
-              is: "div",
-              "data-islet-type": "island",
-              "data-islet-id": isletId,
-              style: { display: "contents" },
-              class: className,
-            }
-          : {}),
-        children: !island
-          ? children
-          : cloneElement(children, {
-              children: children.props.children
-                ? h(
-                    "fragment",
-                    {
-                      is: "div",
-                      style: { display: "contents" },
-                      "data-islet-type": "slot",
-                      children: children.props.children,
-                    },
-                    children.key
-                  )
-                : null,
-            }),
-      },
-      children.key
-    );
-    return island ? result : result.props.children;
+export const createJsx = ({
+  h,
+  Fragment,
+  cloneElement,
+}: {
+  // deno-lint-ignore ban-types
+  h: Function;
+  // deno-lint-ignore ban-types
+  Fragment: Function;
+  // deno-lint-ignore ban-types
+  cloneElement: Function;
+}) =>
+(type: any, params: any, key: any, ...props: any[]): any => {
+  const islands = getAllIslands();
+  const island = islands.get(type);
+  const isletData = !island ? null : {
+    url: `${island.islands.parentPathSegment ?? ""}/islands/${
+      createIslandId(island.url)
+    }.js`,
+    exportName: island.exportName,
+    props: jsonStringifyWithBigIntSupport({
+      ...transformVirtualNodeToStatic(params, islands),
+      children: undefined,
+    }),
   };
+  const isletId = island ? getHashSync(JSON.stringify(isletData)) : null;
+  if (island) {
+    storeFunctionExecution((isletId: string, isletData: unknown) => {
+      (window as any)._ISLET = Object.assign(
+        { [isletId]: isletData },
+        (window as any)._ISLET || {},
+      );
+    }, ...[isletId, isletData]);
+  }
+  const className = island ? createIslandScript(island) : null;
+  const children = h(type, params, key, ...props);
+  const result = h(
+    island ? "fragment" : Fragment,
+    {
+      ...(island
+        ? {
+          is: "div",
+          "data-islet-type": "island",
+          "data-islet-id": isletId,
+          style: { display: "contents" },
+          class: className,
+        }
+        : {}),
+      children: !island ? children : cloneElement(children, {
+        children: children.props.children
+          ? h(
+            "fragment",
+            {
+              is: "div",
+              style: { display: "contents" },
+              "data-islet-type": "slot",
+              children: children.props.children,
+            },
+            children.key,
+          )
+          : null,
+      }),
+    },
+    children.key,
+  );
+  return island ? result : result.props.children;
+};
