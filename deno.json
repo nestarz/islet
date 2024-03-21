@@ -19,6 +19,8 @@
       "**/.DS_Store"
     ],
     "include": [
+      "**/*.md",
+      "deno.json",
       "vendor/**/*",
       "src/**/*",
       "*.ts",
