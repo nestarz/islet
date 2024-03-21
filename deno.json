@@ -1,6 +1,6 @@
 {
   "name": "@bureaudouble/islet",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "lint": {
     "rules": {
       "tags": ["fresh", "recommended"]
@@ -37,7 +37,7 @@
     "react/": "npm:/react@18.2/",
     "preact/": "npm:/preact@10.19/",
     "preact": "npm:preact@10.19",
-    "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@0.9.0",
+    "@luca/esbuild-deno-loader": "jsr:@bureaudouble/esbuild-deno-loader@0.10.3-patch",
     "@bureaudouble/outils/": "jsr:/@bureaudouble/outils@0.0.13/",
     "@bureaudouble/scripted": "jsr:@bureaudouble/scripted@0.0.2",
     "@std/fs/": "jsr:/@std/fs@0.216/",
