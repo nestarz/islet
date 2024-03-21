@@ -1,3 +1,4 @@
 .DS_Store
 .islet
 *.wasm
+vendor/esbuild_deno_loader
