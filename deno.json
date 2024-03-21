@@ -1,6 +1,6 @@
 {
   "name": "@bureaudouble/islet",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "lint": {
     "rules": {
       "tags": ["fresh", "recommended"]
@@ -9,14 +9,22 @@
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "dom.asynciterable", "deno.ns"]
   },
-  "exclude": [
-    ".*",
-    "test/",
-    "**/*.env*",
-    "**/.env",
-    "**/.env*",
-    "**/.DS_Store"
-  ],
+  "publish": {
+    "exclude": [
+      ".*",
+      "test/",
+      "**/*.env*",
+      "**/.env",
+      "**/.env*",
+      "**/.DS_Store"
+    ],
+    "include": [
+      "vendor/**/*",
+      "src/**/*",
+      "*.ts",
+      "vendor/deno.land/x/esbuild@v0.20.1/esbuild.wasm"
+    ]
+  },
   "exports": {
     "./react/jsx-runtime": "./src/react/jsx-runtime.ts",
     "./client": "./client.ts",
