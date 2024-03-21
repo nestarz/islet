@@ -1,6 +1,6 @@
 {
   "name": "@bureaudouble/islet",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "lint": {
     "rules": {
       "tags": ["fresh", "recommended"]
@@ -37,7 +37,7 @@
     "react/": "npm:/react@18.2/",
     "preact/": "npm:/preact@10.19/",
     "preact": "npm:preact@10.19",
-    "@luca/esbuild-deno-loader": "jsr:@bureaudouble/esbuild-deno-loader@0.10.3-patch",
+    "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@0.10.3",
     "@bureaudouble/outils/": "jsr:/@bureaudouble/outils@0.0.13/",
     "@bureaudouble/scripted": "jsr:@bureaudouble/scripted@0.0.2",
     "@std/fs/": "jsr:/@std/fs@0.216/",
@@ -47,6 +47,6 @@
     "types/esbuild": "npm:esbuild@0.20.1",
     "esbuild-wasm": "./vendor/deno.land/x/esbuild@v0.20.1/wasm.js",
     "esbuild": "./vendor/deno.land/x/esbuild@v0.20.1/mod.js",
-    "https://jsr.io/@luca/esbuild-deno-loader/0.9.0/vendor/x/importmap/": "./vendor/deno.land/x/importmap@0.2.1/"
+    "https://jsr.io/@luca/esbuild-deno-loader/0.10.3/vendor/x/importmap/": "./vendor/deno.land/x/importmap@0.2.1/"
   }
 }
